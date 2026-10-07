@@ -32,3 +32,18 @@ No policy has been selected. Options are for discussion only. Decision owners ar
 - **Why it matters:** who may create groups, administer them and add members affects privacy (FR-MSG-010, FR-SEC-017) and moderation.
 - **Possible options:** executive-created official groups only; member-created with limits; staged (FRS §24.2 lists "enhanced messaging governance" as Phase 2).
 - **Needed by:** before Sprint 9. **Proposed owner:** President and Secretary, with Parish Priest/Youth Chaplain.
+
+---
+
+# Technical decisions (Sprint 1A)
+
+| ID   | Decision / issue                                                                                                                                                                                                      | Status                     | Owner                        |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ---------------------------- |
+| TD-1 | Supabase environments (dev/test/production projects), GitHub remote, Vercel project, and how migrations reach remote databases (CI vs manual `supabase db push`)                                                      | OPEN: needs human setup    | Project owner                |
+| TD-2 | Approve ADR-007 organisation scope model before identity schema                                                                                                                                                       | OPEN                       | Project owner / stakeholders |
+| TD-3 | Content-Security-Policy strategy (nonce via middleware)                                                                                                                                                               | OPEN, deferred             | Engineering                  |
+| TD-4 | `npm audit`: PostCSS advisories (high) via `next@15.5.27` nested dependency; npm's suggested fix is a breaking upgrade to Next 16. Not exploitable through unprocessed untrusted CSS in this app, but must be tracked | OPEN                       | Engineering                  |
+| TD-5 | Verify `supabase/config.toml`, migrations and real RLS with the Supabase CLI stack (Docker); consider a CI job                                                                                                        | OPEN: NOT RUN in Sprint 1A | Engineering                  |
+| TD-6 | Rate limiting for security-sensitive routes (FR-SEC-022/023)                                                                                                                                                          | OPEN: Sprint 1B            | Engineering                  |
+| TD-7 | Realtime design details (ADR-006)                                                                                                                                                                                     | OPEN: Sprint 9             | Engineering                  |
+| TD-8 | Observability/error-reporting tooling (none installed)                                                                                                                                                                | OPEN                       | Engineering                  |

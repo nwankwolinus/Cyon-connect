@@ -1,58 +1,67 @@
-# CYON Connect Architecture (Sprint 0 proposal)
+# CYON Connect Architecture (as implemented after Sprint 1A)
 
-Status: recommendation. Not stakeholder-approved. See ARCHITECTURE_DECISIONS.md.
+Status: describes the repository as it is. Recommendations not yet implemented are labelled **Planned**. Nothing is stakeholder-approved. Decisions: `ARCHITECTURE_DECISIONS.md`. Developer guide and walkthrough: `MODULE_GUIDE.md`.
 
-## 1. System overview
+## 1. Overview
 
-One backend, many clients (FR-GEN-002). Sprint scope: a Next.js web/admin app plus Supabase (PostgreSQL, Auth, Storage, Realtime). A mobile client is deferred but will consume the same contracts. Target: ~300 members at one parish (FR-GEN-005), without blocking Parish → Deanery → Archdiocese growth (FR-GEN-006, FR-SEC-029).
+One backend, many clients (FR-GEN-002). Today: a Next.js 15 / React 19 / TypeScript web app (`app/`) and Supabase as infrastructure (PostgreSQL, Auth, Storage, Realtime). Mobile is deferred, but business logic lives in modules that do not depend on Next.js, so a mobile client can later use the same HTTP API and database rules. Target scale ~300 members at one parish (FR-GEN-005); expansion to Deanery/Archdiocese is kept possible (FR-GEN-006, ADR-007).
 
-## 2. Layering
+## 2. Module-first structure
 
-| Layer                | Location                                     | Rule                                                                                         |
-| -------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Presentation         | `app/`, `components/`                        | No business rules; no authorisation decisions treated as security                            |
-| Application services | `services/`                                  | Use cases; orchestrate domain, data, audit                                                   |
-| Domain               | `domain/`                                    | Pure TypeScript business rules (e.g. financial authority), no framework imports; unit-tested |
-| Persistence          | `lib/data/` (future), `supabase/migrations/` | Data access and SQL                                                                          |
-| Auth / authorization | `lib/auth/`, `lib/authz/` (future)           | Server-side checks plus RLS                                                                  |
-| Validation           | zod schemas in `domain/` or `types/`         | Shared with mobile later                                                                     |
-| Audit                | `services/audit` (future), DB table          | Append-only                                                                                  |
-| Infrastructure       | `lib/`                                       | Env, Supabase clients, errors                                                                |
+Business boundaries are modules (`modules/<name>/{domain,application,infrastructure,presentation}`), not global technical layers. Only one module exists: `modules/health` (technical, proves the pattern). Business modules (identity, membership, attendance, finance, ...) are created in their own sprints, not as empty folders. See `MODULE_GUIDE.md` for the rules table and the real request walkthrough.
 
-## 3. Web and backend
+## 3. Supabase is infrastructure
 
-Next.js App Router. Mutations go through server-side services (Route Handlers or Server Actions that delegate to `services/`). Route Handlers under `app/api/` expose a stable HTTP surface the mobile client can call; business logic never lives in components.
+`infrastructure/supabase/` holds three clients:
 
-## 4. Database direction
+- `browser.ts`: anon key, RLS applies, safe for client components.
+- `server.ts` (`server-only`): anon key + session cookies, acts as the signed-in user, RLS applies.
+- `admin.ts` (`server-only`): service role, bypasses RLS. Callable only from infrastructure adapters and composition roots (enforced). Callers must authorize in the application layer first (FR-CC-008).
+  Domain and application code never import Supabase; they depend on ports implemented by adapters.
 
-PostgreSQL via Supabase, schema in versioned migrations. Separate tables for member record, user account, membership status, account status and executive assignment (BR-CC-002). Financial, attendance, executive and audit data are never hard-deleted (FR-FIN-011, FR-MEMA-005, FR-AUD-003). Include an organisational-unit column strategy (parish now, deanery/archdiocese later). Detailed ERD is a later artefact (FR-CC-005).
+## 4. Environment
 
-## 5. Authentication
+`infrastructure/config/schema.ts` (zod) separates **public** (`NEXT_PUBLIC_*`), **server** (`APP_ENV`) and **privileged** (`SUPABASE_SERVICE_ROLE_KEY`) variables. Public values are read in `config/public.ts`; server/privileged in `config/server.ts` (`server-only`). Validation is lazy; error messages name variables, never values. `.env*` files (except `.env.example`) are gitignored. A post-build scan (`npm run security:bundle-scan`) fails if the browser bundle references the key or contains a service-role JWT.
 
-Supabase Auth for credentials, recovery and sessions (FR-SEC-004–007). One user account per member record, linked by a unique constraint (FR-SEC-003). Throttling/lockout (FR-SEC-022) to be validated against Supabase capabilities in Sprint 1.
+## 5. Database
 
-## 6. Authorization
+- Migrations in `supabase/migrations/` (timestamped SQL), config in `supabase/config.toml`, seed in `supabase/seed/` (intentionally contains no data).
+- Baseline migration `20261007090000_platform_baseline.sql`: `set_updated_at()` helper; default privileges revoked from `anon`/`authenticated` on new tables and sequences (default-deny); `platform_ping()` readiness function executable only by `service_role`. No business tables yet.
+- Same engine everywhere: PostgreSQL via Supabase for dev, test and production.
+- Safe commands: `npm run database:migrate` (local `supabase migration up`), `database:reset` and `database:seed` (guarded). The guard (`infrastructure/database/safety.ts`) fails closed: requires `APP_ENV` of `development` or `test`, refuses `production` and `NODE_ENV=production` unconditionally, refuses non-local targets unless an explicit override variable is set. Remote/production migration deployment is a separate, deliberate human step (open decision TD-1).
+- Verification: `tests/database/migrations.test.ts` applies the migrations to a clean PostgreSQL (PGlite) with a small stub of Supabase's `auth`/roles (`tests/support/supabase-stub.sql`). **The Supabase CLI stack (`supabase start`/`db reset`) was NOT run** (no Docker in the build sandbox); `config.toml` is unverified against the CLI.
 
-Roles are not permissions (BR-CC-003). Permissions are derived from valid, time-bound executive assignments (FR-ADM-005, FR-SEC-011) using the FRS §21 matrix as the baseline; anything unspecified is denied (FR-SEC-010). Checks run in services and are mirrored by RLS. Financial correct/reverse is a separate permission granted only to Financial Secretary (BR-CC-004/005/006/007).
+## 6. Health
 
-## 7. RLS strategy
+- `GET /api/health`: liveness, no dependencies, no configuration.
+- `GET /api/health/ready`: readiness; calls `platform_ping()` through the real supabase-js client; 200 when ready, 503 otherwise; body lists dependency name/status/latency only. Details go to logs (error name only), never to the response.
 
-RLS enabled on every table by default, deny-by-default policies, helper SQL functions that resolve the caller's active permissions. The service-role key is server-only and used sparingly, with application-level checks and audit. Welfare and private messages get stricter policies (FR-SEC-016/017). Files inherit access from their parent record (FR-SEC-018).
+## 7. Errors, logging, correlation
 
-## 8. Future mobile integration
+`shared/errors/app-error.ts`: categories validation, authentication, authorization, not_found, conflict, business_rule, infrastructure, internal, mapped to HTTP status in `shared/http/error-response.ts`; unknown errors become a generic message. `shared/logging/logger.ts` provides redaction (credentials, email, message/content fields); `infrastructure/logging/console-logger.ts` writes JSON lines. `x-correlation-id` is accepted (if well formed) or generated and returned. External observability tooling is **Planned**, not present.
 
-Domain rules and validation schemas are framework-free so they can be shared; HTTP/API contracts and Supabase RLS provide the same enforcement to any client. Mobile decisions (monorepo vs separate repo) are deferred.
+## 8. Security baseline implemented
 
-## 9. Storage, realtime, audit
+Server/client separation (`server-only`, import rules, bundle scan); secrets protection (gitignore, `.env.example`, lightweight scanner, gitleaks over full history in CI); default-deny DB defaults; security headers (nosniff, frame deny, referrer policy, HSTS, permissions policy, COOP); safe error responses; `npm audit` job (awareness). Not implemented: CSP, rate limiting, authentication, authorization (FR-SEC-008/009 are backend features for sprints 1B/3).
 
-- **Storage:** private buckets, signed URLs, policies tied to owning record; upload type/size validation (FR-SEC-025).
-- **Realtime:** only for messaging and live updates (Sprint 9); realtime respects RLS; messaging analytics never expose content (FR-MSG-011).
-- **Audit:** append-only audit table written by services/DB triggers; records actor, action, time, record, change (FR-AUD-002); audited actions listed in FR-AUD-001.
+## 9. Enforcement and CI
 
-## 10. Deployment
+`npm run arch:check` (dependency-cruiser) plus ESLint boundary rules; tests in `tests/architecture` prove each rule fires. CI (`.github/workflows/ci.yml`): install, lint, typecheck, arch check, tests, build, bundle scan, secrets scan; separate gitleaks job and a non-blocking dependency audit job. CI has not run on GitHub (no remote).
 
-GitHub → CI (lint, typecheck, test, build) → Vercel preview/production; Supabase separate dev and production projects recommended. Actual service state is **unverified** (see ARCHITECTURE_DECISIONS.md, Services).
+## 10. Deliberately NOT implemented in Sprint 1A
 
-## 11. Scalability
+Authentication, identity/member/account tables, roles, permissions, executive assignments, organisation tables, RLS policies for business data, all business modules, realtime messaging, notifications, storage buckets, reporting, mobile app, observability tooling, Supabase CLI verification.
 
-300 members does not need extra infrastructure. Keep the tenancy/org-scope column, index by it, and avoid per-parish assumptions in code. Revisit connection pooling, rate limiting and cost (Charter risk: hosting cost) before release.
+## 11. Disposition of Sprint 0 structure
+
+| Sprint 0 item                               | Decision        | Result                                                                                                 |
+| ------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------ |
+| `lib/env/schema.ts`, `lib/env/index.ts`     | Move + Refactor | `infrastructure/config/{schema,public,server}.ts`; added `APP_ENV`, privileged split                   |
+| `lib/errors.ts`                             | Replace         | `shared/errors/app-error.ts` (categories replace codes) + `shared/http/error-response.ts`              |
+| `tests/env.test.ts`, `tests/errors.test.ts` | Move + Refactor | `tests/infrastructure/env.test.ts`, `tests/shared/errors.test.ts` (original assertions kept, extended) |
+| `domain/`, `services/`, `types/` (empty)    | Delete          | Logic belongs in `modules/<name>/` or `shared/`                                                        |
+| `lib/`                                      | Delete          | Emptied by the moves                                                                                   |
+| `components/`                               | Keep            | Generic non-business UI primitives only                                                                |
+| `app/api/health/route.ts`                   | Refactor        | Delegates to `modules/health/presentation`; added `/api/health/ready`                                  |
+| `supabase/migrations`, `supabase/seed`      | Keep + populate | Baseline migration, config.toml, empty seed                                                            |
+| root-level `app/`                           | Keep            | No `src/` migration (no technical reason)                                                              |
