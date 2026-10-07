@@ -6,7 +6,8 @@ beforeAll(async () => {
   db = await freshDb();
 }, 60_000);
 
-const ids = (r: { rows: Array<Record<string, unknown>> }, col = "id") => r.rows.map((x) => x[col]);
+const ids = (r: { rows: unknown[] }, col = "id") =>
+  r.rows.map((x) => (x as Record<string, unknown>)[col]);
 
 describe("schema inventory", () => {
   it("contains exactly the identity tables, all with RLS enabled", async () => {
