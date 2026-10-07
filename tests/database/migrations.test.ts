@@ -34,9 +34,11 @@ describe("platform baseline migration (applied to a clean PostgreSQL)", () => {
     expect(new Set(files.map((f) => f.slice(0, 14))).size).toBe(files.length);
   });
 
-  it("creates no business tables", async () => {
-    const r = await db.query("select tablename from pg_tables where schemaname='public'");
-    expect(r.rows).toEqual([]);
+  it("creates exactly the identity tables and no other business tables", async () => {
+    const r = await db.query<{ tablename: string }>(
+      "select tablename from pg_tables where schemaname='public' order by 1",
+    );
+    expect(r.rows.map((x) => x.tablename)).toEqual(["members", "org_units", "user_accounts"]);
   });
 
   it("platform_ping is callable by service_role only", async () => {
