@@ -1,0 +1,8 @@
+# Gitleaks configuration: default rules plus an allowlist for obvious placeholders.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented placeholders and test fixtures"
+paths = ['''^\.env\.example$''', '''^package-lock\.json$''', '''^\.next/''', '''^node_modules/''']
+regexes = ['''(?i)(placeholder|your-project-ref|your-anon-key|your-service-role-key)''']

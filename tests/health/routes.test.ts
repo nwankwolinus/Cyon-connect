@@ -12,10 +12,13 @@ let baseUrl = "";
 beforeAll(async () => {
   server = createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url?.startsWith("/rest/v1/rpc/platform_ping") && mode === "ok") return void res.end("true");
+    if (req.url?.startsWith("/rest/v1/rpc/platform_ping") && mode === "ok")
+      return void res.end("true");
     if (mode === "false") return void res.end("false");
     res.statusCode = 500;
-    res.end(JSON.stringify({ message: "relation secret_table does not exist", hint: "db.internal" }));
+    res.end(
+      JSON.stringify({ message: "relation secret_table does not exist", hint: "db.internal" }),
+    );
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -40,7 +43,10 @@ describe("GET /api/health/ready (readiness)", () => {
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-placeholder");
     const res = await call();
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ status: "ready", checks: [{ name: "database", status: "up" }] });
+    expect(await res.json()).toMatchObject({
+      status: "ready",
+      checks: [{ name: "database", status: "up" }],
+    });
   });
 
   it("503 without leaking details when the database errors", async () => {

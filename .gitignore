@@ -19,3 +19,7 @@ supabase/.temp/
 
 .DS_Store
 *.log
+
+# Supabase CLI secrets
+supabase/.env
+supabase/.env.*

@@ -45,9 +45,12 @@ function main() {
   }
 
   const url = process.env.DATABASE_URL;
-  if (!url) throw new UnsafeDatabaseOperationError("Refusing database seed: DATABASE_URL is not set.");
+  if (!url)
+    throw new UnsafeDatabaseOperationError("Refusing database seed: DATABASE_URL is not set.");
   const dir = path.resolve("supabase/seed");
-  const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
   for (const f of files) run("psql", [url, "-v", "ON_ERROR_STOP=1", "-f", path.join(dir, f)]);
 }
 

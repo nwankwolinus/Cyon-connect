@@ -27,7 +27,10 @@ describe("Supabase client separation", () => {
 
   it("browser client touches only public configuration", () => {
     const src = read("infrastructure/supabase/browser.ts");
-    const imports = src.split("\n").filter((l) => /^\s*import\b/.test(l)).join("\n");
+    const imports = src
+      .split("\n")
+      .filter((l) => /^\s*import\b/.test(l))
+      .join("\n");
     const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
     expect(imports).not.toMatch(/server-only|supabase\/(admin|server)|config\/server/);
     expect(code).not.toMatch(/SERVICE_ROLE/);
@@ -48,7 +51,9 @@ describe("Supabase client separation", () => {
   });
 
   it("no NEXT_PUBLIC_ variable can carry the service role", () => {
-    const all = ["app", "modules", "shared", "infrastructure", "components"].flatMap((d) => walk(d));
+    const all = ["app", "modules", "shared", "infrastructure", "components"].flatMap((d) =>
+      walk(d),
+    );
     const bad = all.filter((f) => /NEXT_PUBLIC_[A-Z_]*(SERVICE|SECRET)/.test(read(f)));
     expect(bad).toEqual([]);
     expect(read(".env.example")).not.toMatch(/NEXT_PUBLIC_[A-Z_]*SERVICE/);

@@ -3,6 +3,10 @@ on:
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -15,5 +19,37 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - name: Architecture boundaries
+        run: npm run arch:check
       - run: npm test
       - run: npm run build
+      - name: Client bundle must not contain privileged credentials
+        run: npm run security:bundle-scan
+      - name: Lightweight secret scan
+        run: npm run secrets:scan
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks (pinned)
+        run: |
+          curl -sSL -o gitleaks.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
+          tar -xzf gitleaks.tgz gitleaks
+      - name: Scan full git history
+        run: ./gitleaks git --config .gitleaks.toml --redact --verbose .
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    # Awareness, not a gate: new advisories must not block unrelated work. Review the output.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high

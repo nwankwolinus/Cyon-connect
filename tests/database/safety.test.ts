@@ -14,13 +14,15 @@ describe("destructive database operation guard", () => {
   for (const op of ["reset", "seed"] as const) {
     it(`${op}: allows local development and test`, () => {
       expect(() => assertSafeForDestructiveOperation(op, local)).not.toThrow();
-      expect(() => assertSafeForDestructiveOperation(op, { ...local, APP_ENV: "test" })).not.toThrow();
+      expect(() =>
+        assertSafeForDestructiveOperation(op, { ...local, APP_ENV: "test" }),
+      ).not.toThrow();
     });
 
     it(`${op}: refuses APP_ENV=production, even with the remote override`, () => {
-      expect(() => assertSafeForDestructiveOperation(op, { ...local, APP_ENV: "production" })).toThrow(
-        UnsafeDatabaseOperationError,
-      );
+      expect(() =>
+        assertSafeForDestructiveOperation(op, { ...local, APP_ENV: "production" }),
+      ).toThrow(UnsafeDatabaseOperationError);
       expect(() =>
         assertSafeForDestructiveOperation(op, {
           APP_ENV: "production",
@@ -30,27 +32,40 @@ describe("destructive database operation guard", () => {
     });
 
     it(`${op}: refuses NODE_ENV=production`, () => {
-      expect(() => assertSafeForDestructiveOperation(op, { ...local, NODE_ENV: "production" })).toThrow(/NODE_ENV/);
+      expect(() =>
+        assertSafeForDestructiveOperation(op, { ...local, NODE_ENV: "production" }),
+      ).toThrow(/NODE_ENV/);
     });
 
     it(`${op}: fails closed when APP_ENV is unset or unknown (incl. staging)`, () => {
       expect(() => assertSafeForDestructiveOperation(op, {})).toThrow(/APP_ENV is not set/);
-      expect(() => assertSafeForDestructiveOperation(op, { APP_ENV: "staging" })).toThrow(/staging/);
+      expect(() => assertSafeForDestructiveOperation(op, { APP_ENV: "staging" })).toThrow(
+        /staging/,
+      );
       expect(() => assertSafeForDestructiveOperation(op, { APP_ENV: "prod" })).toThrow(/prod/);
     });
 
     it(`${op}: refuses a remote database unless explicitly overridden`, () => {
-      const remote = { APP_ENV: "development", NEXT_PUBLIC_SUPABASE_URL: "https://abc.supabase.co" };
+      const remote = {
+        APP_ENV: "development",
+        NEXT_PUBLIC_SUPABASE_URL: "https://abc.supabase.co",
+      };
       expect(() => assertSafeForDestructiveOperation(op, remote)).toThrow(/not a local database/);
       expect(() =>
-        assertSafeForDestructiveOperation(op, { ...remote, [REMOTE_OVERRIDE_VARIABLE]: REMOTE_OVERRIDE_VALUE }),
+        assertSafeForDestructiveOperation(op, {
+          ...remote,
+          [REMOTE_OVERRIDE_VARIABLE]: REMOTE_OVERRIDE_VALUE,
+        }),
       ).not.toThrow();
     });
 
     it(`${op}: treats an unparseable target as remote`, () => {
-      expect(() => assertSafeForDestructiveOperation(op, { APP_ENV: "development", DATABASE_URL: "not a url" })).toThrow(
-        /not a local database/,
-      );
+      expect(() =>
+        assertSafeForDestructiveOperation(op, {
+          APP_ENV: "development",
+          DATABASE_URL: "not a url",
+        }),
+      ).toThrow(/not a local database/);
     });
   }
 });
@@ -86,7 +101,11 @@ describe("database CLI wrapper", () => {
   });
 
   it("exposes the guard through npm scripts", () => {
-    const out = execFileSync("node", ["-p", "require('./package.json').scripts['database:reset']"], { encoding: "utf8" });
+    const out = execFileSync(
+      "node",
+      ["-p", "require('./package.json').scripts['database:reset']"],
+      { encoding: "utf8" },
+    );
     expect(out).toContain("scripts/database/run.ts reset");
   });
 });
