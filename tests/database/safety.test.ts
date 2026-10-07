@@ -60,7 +60,7 @@ describe("database CLI wrapper", () => {
   const tsx = path.resolve("node_modules/.bin/tsx");
   const run = (cmd: string, env: Record<string, string>) =>
     spawnSync(tsx, [cli, cmd, "--dry-run"], {
-      env: { PATH: process.env.PATH ?? "", ...env } as NodeJS.ProcessEnv,
+      env: { PATH: process.env.PATH ?? "", ...env } as unknown as NodeJS.ProcessEnv,
       encoding: "utf8",
     });
 

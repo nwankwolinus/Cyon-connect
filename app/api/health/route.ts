@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { livenessHandler } from "@/modules/health/presentation/health-handlers";
 
-// Liveness probe only. Reveals no configuration or secrets.
+export const dynamic = "force-dynamic";
+
+/** GET /api/health : liveness (process is running). */
 export function GET() {
-  return NextResponse.json({ status: "ok" });
+  return livenessHandler();
 }
