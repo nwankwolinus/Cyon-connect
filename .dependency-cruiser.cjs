@@ -17,7 +17,8 @@ module.exports = {
     {
       name: "domain-isolation",
       severity: "error",
-      comment: "Domain code must not depend on application, infrastructure, presentation, app, composition or tooling.",
+      comment:
+        "Domain code must not depend on application, infrastructure, presentation, app, composition or tooling.",
       from: { path: "^modules/[^/]+/domain/" },
       to: {
         path: `^modules/[^/]+/(application|infrastructure|presentation)/|${COMPOSITION}|^infrastructure/|^app/|^components/|^scripts/|^tests/`,
@@ -33,7 +34,8 @@ module.exports = {
     {
       name: "application-isolation",
       severity: "error",
-      comment: "Application depends on domain and ports only; never on infrastructure, presentation, app or composition.",
+      comment:
+        "Application depends on domain and ports only; never on infrastructure, presentation, app or composition.",
       from: { path: "^modules/[^/]+/application/" },
       to: {
         path: `^modules/[^/]+/(infrastructure|presentation)/|${COMPOSITION}|^infrastructure/|^app/|^components/|^scripts/|^tests/`,
@@ -49,7 +51,8 @@ module.exports = {
     {
       name: "presentation-isolation",
       severity: "error",
-      comment: "Presentation talks to application only (plus shared and the browser-safe Supabase/public config).",
+      comment:
+        "Presentation talks to application only (plus shared and the browser-safe Supabase/public config).",
       from: { path: "^modules/[^/]+/presentation/" },
       to: {
         path: `^modules/[^/]+/(domain|infrastructure)/|${COMPOSITION}|^infrastructure/|^app/|(^|/)node_modules/@supabase/`,
@@ -59,7 +62,8 @@ module.exports = {
     {
       name: "module-infrastructure-no-upward",
       severity: "error",
-      comment: "Infrastructure adapters must not depend on presentation, composition, app or components.",
+      comment:
+        "Infrastructure adapters must not depend on presentation, composition, app or components.",
       from: { path: "^modules/[^/]+/infrastructure/" },
       to: { path: `^modules/[^/]+/presentation/|${COMPOSITION}|^app/|^components/` },
     },
@@ -73,7 +77,8 @@ module.exports = {
     {
       name: "shared-kernel-pure",
       severity: "error",
-      comment: "shared/ is a small, pure kernel: no modules, infrastructure, app, components or frameworks.",
+      comment:
+        "shared/ is a small, pure kernel: no modules, infrastructure, app, components or frameworks.",
       from: { path: "^shared/" },
       to: { path: `^(modules|infrastructure|app|components|scripts)/|${FRAMEWORKS}` },
     },
@@ -87,15 +92,20 @@ module.exports = {
     {
       name: "app-via-module-entrypoints",
       severity: "error",
-      comment: "Routes use a module's presentation or composition root, never its domain/application/infrastructure directly.",
+      comment:
+        "Routes use a module's presentation or composition root, never its domain/application/infrastructure directly.",
       from: { path: "^app/" },
       to: { path: "^modules/[^/]+/(domain|application|infrastructure)/" },
     },
     {
       name: "privileged-clients-restricted",
       severity: "error",
-      comment: "Service-role/server Supabase clients and server config may only be used by infrastructure adapters and composition roots.",
-      from: { pathNot: "^(modules/[^/]+/(infrastructure/|composition\\.ts$)|infrastructure/|tests/|scripts/)" },
+      comment:
+        "Service-role/server Supabase clients and server config may only be used by infrastructure adapters and composition roots.",
+      from: {
+        pathNot:
+          "^(modules/[^/]+/(infrastructure/|composition\\.ts$)|infrastructure/|tests/|scripts/)",
+      },
       to: { path: SERVER_ONLY_FILES },
     },
     {

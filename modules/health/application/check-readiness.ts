@@ -1,6 +1,10 @@
 import type { Logger } from "@/shared/logging/logger";
 import { describeError } from "@/shared/logging/logger";
-import { buildReadinessReport, type DependencyCheck, type ReadinessReport } from "@/modules/health/domain/readiness";
+import {
+  buildReadinessReport,
+  type DependencyCheck,
+  type ReadinessReport,
+} from "@/modules/health/domain/readiness";
 import type { InfrastructureProbe } from "./ports";
 
 export type { ReadinessReport, DependencyCheck } from "@/modules/health/domain/readiness";

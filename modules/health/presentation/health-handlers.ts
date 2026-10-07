@@ -27,7 +27,10 @@ export function createReadinessHandler(checkReadiness: CheckReadiness, logger: L
         headers: { ...NO_STORE, [CORRELATION_HEADER]: correlationId },
       });
     } catch (e) {
-      logger.error("readiness check crashed", { correlationId, errorName: e instanceof Error ? e.name : "NonError" });
+      logger.error("readiness check crashed", {
+        correlationId,
+        errorName: e instanceof Error ? e.name : "NonError",
+      });
       return errorResponse(e, correlationId);
     }
   };

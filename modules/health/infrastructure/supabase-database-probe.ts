@@ -13,7 +13,8 @@ export function createSupabaseDatabaseProbe(getClient: () => SupabaseClient): In
     async check() {
       const { data, error } = await getClient().rpc("platform_ping");
       if (error) throw new AppError("infrastructure", "Database unavailable.", { cause: error });
-      if (data !== true) throw new AppError("infrastructure", "Database returned an unexpected response.");
+      if (data !== true)
+        throw new AppError("infrastructure", "Database returned an unexpected response.");
     },
   };
 }

@@ -8,7 +8,8 @@ export interface Logger {
 }
 
 /** Keys whose values must never reach logs (credentials, personal data, message/financial content). */
-const SENSITIVE_KEY = /pass(word)?|token|secret|key|authorization|cookie|session|e-?mail|phone|content|body|iban|account_?number/i;
+const SENSITIVE_KEY =
+  /pass(word)?|token|secret|key|authorization|cookie|session|e-?mail|phone|content|body|iban|account_?number/i;
 
 export const REDACTED = "[REDACTED]";
 

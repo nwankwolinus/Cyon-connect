@@ -21,7 +21,10 @@ const RULES: Array<{ rule: string; re: RegExp; allow?: RegExp }> = [
     // Local development databases (Supabase CLI defaults) are not secrets.
     allow: /@(127\.0\.0\.1|localhost)(:|\/)/,
   },
-  { rule: "service-role-assignment", re: /SERVICE_ROLE_KEY\s*[=:]\s*["']?(?!process\.env)([A-Za-z0-9._-]{20,})/ },
+  {
+    rule: "service-role-assignment",
+    re: /SERVICE_ROLE_KEY\s*[=:]\s*["']?(?!process\.env)([A-Za-z0-9._-]{20,})/,
+  },
 ];
 
 export function findSecrets(text: string, file: string): Finding[] {
