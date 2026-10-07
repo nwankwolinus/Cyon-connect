@@ -28,3 +28,4 @@ A sprint increment is done only when every applicable item is true and evidenced
 - New tables enable RLS and grant explicitly in the same migration; the migration test applies cleanly to an empty database.
 - A new infrastructure dependency gets a readiness probe or a documented reason not to.
 - Destructive scripts keep the production guard.
+- Schema changes update `docs/architecture/ERD_IDENTITY.md` (or the relevant ERD); `tests/database/erd.test.ts` must pass. Invariants are covered by database tests, and RLS changes by negative (denied) tests.

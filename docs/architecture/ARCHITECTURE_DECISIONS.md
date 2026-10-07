@@ -66,9 +66,25 @@ Two endpoints with different contracts (see ARCHITECTURE.md section 6). Readines
 
 Supabase Realtime is an infrastructure adapter behind a messaging application port. Channel authorization must be RLS-backed and private by default; executives do not get message-content access (FR-SEC-017). Open: Broadcast vs Postgres Changes, presence, message retention.
 
-## ADR-007 Organisation scope model (PROPOSED, needs approval before Sprint 1B schema)
+## ADR-007 Organisation scope model (PROPOSED; only a common subset implemented in Sprint 1B.1)
 
 Requirement: FR-SEC-029 (scope enforceable across Parish, Deanery, Archdiocese) and FR-GEN-006.
 Analysis: a single `parish_id` column is **not** sufficient, because (a) an executive assignment's authority may apply to one unit **or** to a unit and its descendants (e.g. a Deanery executive over its parishes), (b) a member may transfer between parishes while history must stay attributable, (c) reports and RLS need "is X within scope Y" checks.
 Proposal: an `org_units` table (type: parish | deanery | archdiocese, nullable `parent_id`) now with a single parish row; records carry `org_unit_id`; assignments carry a scope unit and an explicit `includes_descendants` flag; add a closure/path structure only when a second level is actually used. Alternatives: `ltree` (compact, Postgres-specific), closure table (flexible, more writes), per-tenant databases (rejected: operational cost for ~300 members).
 Not decided: deanery/archdiocese reality for CYON in this area, member transfer rules, cross-parish reporting rules. Nothing in this ADR is implemented.
+
+**Sprint 1B.1 gate outcome (ADR-007).** Still not approved by stakeholders. A minimal subset that is valid under every option was implemented: typed `org_units` with an optional parent and `members.org_unit_id` restricted to a parish. Not implemented and still blocked on approval: executive scope assignments, `includes_descendants`, closure/path structure, transfer rules, cross-unit RLS. If stakeholders choose a model incompatible with the subset (for example deanery-level direct members), the fix is a small migration that relaxes one constraint.
+
+## ADR-008 Identity data model (RECOMMENDED; implemented in Sprint 1B.1)
+
+1. **Chain** `auth.users` → `user_accounts` → `members` → `org_units`; credentials only in Supabase Auth.
+2. **No `persons` table**; the member record is the person's identity in CYON. Person-level duplicate prevention is a workflow (open decision #3), not a constraint.
+3. **Stable UUID identifiers**, immutable by trigger; email, phone and name are never keys. FR-MEM-003's "unique membership identifier" is a separate, later display identifier (format undecided).
+4. **Separate lifecycles**: `membership_status` and `account_status` are independent; no role, permission or executive state in identity tables.
+5. **FK ON DELETE RESTRICT** towards `auth.users` instead of cascade or SET NULL: no sync triggers, no accidental loss of history. Cost: removing an auth identity requires deactivating the account and a (future) controlled erasure procedure.
+6. **No physical deletes** (trigger + no grants) instead of a generic `deleted_at`; status values carry the lifecycle.
+7. **Personal data will live in a separate profile table** so identity rows can have simpler policies than PII.
+8. **Declarative organisation checks**: composite foreign keys with a type column instead of triggers.
+9. **Default-deny RLS** with own-row reads gated on an active account; writes only through the server-side service role after application authorization.
+10. **Generated TypeScript types deferred** until the Supabase CLI path is verified (TD-5).
+    Rejected: a `users.role` column (conflicts with BR-CC-002/003); unique email as identity; cascade deletes; broad authenticated read policies; an oversized generic audit framework in this stage.

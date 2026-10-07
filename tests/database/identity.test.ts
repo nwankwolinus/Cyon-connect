@@ -25,6 +25,13 @@ describe("schema inventory", () => {
     expect(r.rows).toEqual([]);
   });
 
+  it("exposes no public function to anon, authenticated or PUBLIC (no accidental RPC surface)", async () => {
+    const r = await db.query(
+      "select routine_name, grantee from information_schema.routine_privileges where routine_schema='public' and grantee in ('PUBLIC','anon','authenticated')",
+    );
+    expect(r.rows).toEqual([]);
+  });
+
   it("stores no credentials: no password/hash/token/secret columns (AC-07)", async () => {
     const r = await db.query<{ column_name: string }>(
       "select column_name from information_schema.columns where table_schema='public' and column_name ~* '(passw|hash|token|secret|credential)'",

@@ -139,6 +139,11 @@ create trigger members_prevent_delete before delete on public.members
 create trigger user_accounts_prevent_delete before delete on public.user_accounts
   for each row execute function public.prevent_delete();
 
+-- Trigger helper functions are not API surface: remove the default EXECUTE grant to PUBLIC so they are
+-- not exposed (e.g. as PostgREST RPC endpoints). Triggers keep working: EXECUTE is not checked at fire time.
+revoke all on function public.set_updated_at(), public.reject_column_change(), public.prevent_delete()
+  from public, anon, authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Security: default deny. RLS is defence in depth; backend authorization remains authoritative.
 -- ---------------------------------------------------------------------------

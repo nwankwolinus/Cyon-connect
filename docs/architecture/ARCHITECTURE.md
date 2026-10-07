@@ -26,7 +26,7 @@ Business boundaries are modules (`modules/<name>/{domain,application,infrastruct
 ## 5. Database
 
 - Migrations in `supabase/migrations/` (timestamped SQL), config in `supabase/config.toml`, seed in `supabase/seed/` (intentionally contains no data).
-- Baseline migration `20261007090000_platform_baseline.sql`: `set_updated_at()` helper; default privileges revoked from `anon`/`authenticated` on new tables and sequences (default-deny); `platform_ping()` readiness function executable only by `service_role`. No business tables yet.
+- Baseline migration `20261007090000_platform_baseline.sql`: `set_updated_at()` helper; default privileges revoked from `anon`/`authenticated` on new tables and sequences (default-deny); `platform_ping()` readiness function executable only by `service_role`. Identity tables were added in Sprint 1B.1 (see `DATABASE_IDENTITY.md`, `ERD_IDENTITY.md`, `DATABASE_SECURITY.md`); no other business tables exist.
 - Same engine everywhere: PostgreSQL via Supabase for dev, test and production.
 - Safe commands: `npm run database:migrate` (local `supabase migration up`), `database:reset` and `database:seed` (guarded). The guard (`infrastructure/database/safety.ts`) fails closed: requires `APP_ENV` of `development` or `test`, refuses `production` and `NODE_ENV=production` unconditionally, refuses non-local targets unless an explicit override variable is set. Remote/production migration deployment is a separate, deliberate human step (open decision TD-1).
 - Verification: `tests/database/migrations.test.ts` applies the migrations to a clean PostgreSQL (PGlite) with a small stub of Supabase's `auth`/roles (`tests/support/supabase-stub.sql`). **The Supabase CLI stack (`supabase start`/`db reset`) was NOT run** (no Docker in the build sandbox); `config.toml` is unverified against the CLI.
@@ -48,9 +48,9 @@ Server/client separation (`server-only`, import rules, bundle scan); secrets pro
 
 `npm run arch:check` (dependency-cruiser) plus ESLint boundary rules; tests in `tests/architecture` prove each rule fires. CI (`.github/workflows/ci.yml`): install, lint, typecheck, arch check, tests, build, bundle scan, secrets scan; separate gitleaks job and a non-blocking dependency audit job. CI has not run on GitHub (no remote).
 
-## 10. Deliberately NOT implemented in Sprint 1A
+## 10. Deliberately NOT implemented (after Sprint 1B.1)
 
-Authentication, identity/member/account tables, roles, permissions, executive assignments, organisation tables, RLS policies for business data, all business modules, realtime messaging, notifications, storage buckets, reporting, mobile app, observability tooling, Supabase CLI verification.
+Authentication, roles, permissions, executive assignments, RLS beyond own-row identity reads, all business modules, realtime messaging, notifications, storage buckets, reporting, mobile app, observability tooling, Supabase CLI verification.
 
 ## 11. Disposition of Sprint 0 structure
 
