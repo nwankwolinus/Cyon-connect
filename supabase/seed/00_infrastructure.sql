@@ -1,0 +1,3 @@
+-- Infrastructure seed: intentionally contains NO data.
+-- CYON business data (members, executives, payments, attendance) must never be fabricated here.
+-- Reference data that the product genuinely requires belongs in migrations, not in this file.

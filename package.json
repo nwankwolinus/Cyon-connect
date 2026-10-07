@@ -15,7 +15,13 @@
     "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "check": "npm run lint && npm run typecheck && npm run arch:check && npm run test && npm run build && npm run security:bundle-scan && npm run secrets:scan",
+    "arch:check": "depcruise app modules shared infrastructure components scripts --config .dependency-cruiser.cjs --ts-config tsconfig.json",
+    "database:migrate": "tsx scripts/database/run.ts migrate",
+    "database:reset": "tsx scripts/database/run.ts reset",
+    "database:seed": "tsx scripts/database/run.ts seed",
+    "secrets:scan": "tsx scripts/security/scan-secrets.ts",
+    "security:bundle-scan": "tsx scripts/security/scan-client-bundle.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
