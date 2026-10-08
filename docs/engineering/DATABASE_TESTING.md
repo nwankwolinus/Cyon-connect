@@ -20,3 +20,5 @@
 
 - PGlite is real PostgreSQL but not the Supabase stack. The Supabase CLI path (`supabase start`, `db reset`, `gen types`) and real PostgREST/Auth behaviour are **not verified** (TD-5).
 - Tests assert what is implemented; they do not prove the later authorization model.
+
+`tests/database/identity-review.test.ts` holds regression tests added by the independent review (direct catalog checks of foreign-key rules, row-locking attempts, join leakage, index presence). Mutation testing of the migration (see the stage report addendum) is the standard way to prove these tests are meaningful.

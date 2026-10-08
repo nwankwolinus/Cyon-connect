@@ -45,3 +45,22 @@ TD-2 (ADR-007 approval), TD-5, ID-1 to ID-8 in `docs/planning/OPEN_DECISIONS.md`
 ## KILL-CRITIC
 
 Hostile review covered identity fan-out, auth linkage, status coupling, org scope, integrity, RLS breadth, privacy, privilege escalation, migration repeatability and test strength. One finding (helper functions executable by PUBLIC) was fixed and covered by a permanent test. No unresolved critical database or identity blocker remains. Result: CONDITIONAL PASS (ADR-007 unapproved, Supabase CLI unverified).
+
+## Independent KILL-CRITIC review (addendum)
+
+A second, independent review re-ran every gate and attacked the migration instead of trusting the report above.
+
+**Re-verified:** lint, typecheck, architecture check (37 modules, 0 violations), build, bundle scan, secrets scan, gitleaks (history) and prettier all pass; no files outside `docs/`, `tests/` and `supabase/migrations/` changed since Sprint 1A.
+
+**Mutation testing (9 new mutations, distinct from the 7 above):** members policy `using (true)`, org_units policy `using (true)`, accounts policy readable by every signed-in user, dropped parish hierarchy clause, helper functions left executable, `membership_status` check removed, `account_status` check removed, cascading auth FK, cascading org FK. Eight were caught immediately. One (cascading org FK) **survived** because the no-delete trigger on `org_units` masked it, so the foreign key's delete rule was only indirectly tested.
+
+**Fix:** `tests/database/identity-review.test.ts` asserts the delete/update rules of every identity foreign key directly in the catalog (the surviving mutant is now killed), probes `SELECT ... FOR UPDATE` as a signed-in user, a cross-table join, and the presence of the indexes behind the documented access patterns. Database tests: 64 (identity 36, review 4, migrations 5, ERD 3, production safety 16); whole suite 110.
+
+**Findings recorded, not fixed (belong to later stages):**
+
+1. The database does **not** constrain status transitions (e.g. `deactivated` to `active`, `archived` to `active`) or changes to `members.org_unit_id`. This is deliberate (returning members, FR-MEMA-006; transfers undecided, ID-5) but means the service role can change them freely. Until audit and actor attribution exist (FR-MEMA-004, FR-SEC-030), such privileged changes are not attributable at the database level, so **no API may expose status changes before the attribution mechanism is designed.**
+2. `org_units_select_own_unit` relies on `members` RLS inside its subquery. When executive read policies are added to `members`, org-unit visibility widens implicitly. Revisit both together in the RBAC sprint.
+3. Role-switching safety (a client cannot run `SET ROLE service_role`) cannot be asserted under PGlite because its session user is a superuser. It depends on PostgREST and signed JWTs and needs the real Supabase stack (TD-5).
+4. The seeded parish name differs from the wording used elsewhere in the docs (ID-8).
+
+No critical database or identity blocker was found.
