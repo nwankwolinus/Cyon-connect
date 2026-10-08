@@ -23,3 +23,6 @@ supabase/.temp/
 # Supabase CLI secrets
 supabase/.env
 supabase/.env.*
+
+# Architecture-test fixtures (created and removed by tests/architecture)
+.arch-fixture-*/

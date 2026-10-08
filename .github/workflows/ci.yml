@@ -28,6 +28,20 @@ jobs:
       - name: Lightweight secret scan
         run: npm run secrets:scan
 
+  windows:
+    # Developers use Windows: guard against POSIX-only assumptions in tests and scripts.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
   gitleaks:
     runs-on: ubuntu-latest
     steps:

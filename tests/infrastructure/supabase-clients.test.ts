@@ -7,7 +7,7 @@ const read = (p: string) => readFileSync(path.join(root, p), "utf8");
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(path.join(root, dir))) {
-    const rel = path.join(dir, name);
+    const rel = `${dir}/${name}`; // forward slashes on every OS
     if (statSync(path.join(root, rel)).isDirectory()) walk(rel, out);
     else if (/\.(ts|tsx|mjs|js)$/.test(name)) out.push(rel);
   }

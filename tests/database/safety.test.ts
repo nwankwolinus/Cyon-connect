@@ -1,5 +1,4 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import {
   assertSafeForDestructiveOperation,
@@ -7,6 +6,7 @@ import {
   REMOTE_OVERRIDE_VALUE,
   UnsafeDatabaseOperationError,
 } from "@/infrastructure/database/safety";
+import { runTsx } from "../support/cli";
 
 const local = { APP_ENV: "development", NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321" };
 
@@ -71,13 +71,8 @@ describe("destructive database operation guard", () => {
 });
 
 describe("database CLI wrapper", () => {
-  const cli = path.resolve("scripts/database/run.ts");
-  const tsx = path.resolve("node_modules/.bin/tsx");
   const run = (cmd: string, env: Record<string, string>) =>
-    spawnSync(tsx, [cli, cmd, "--dry-run"], {
-      env: { PATH: process.env.PATH ?? "", ...env } as unknown as NodeJS.ProcessEnv,
-      encoding: "utf8",
-    });
+    runTsx("scripts/database/run.ts", [cmd, "--dry-run"], env);
 
   it("refuses reset and seed against production and never reaches the supabase/psql step", () => {
     for (const cmd of ["reset", "seed"]) {

@@ -20,7 +20,12 @@ function loadLocalEnv() {
 
 function run(file: string, args: string[]) {
   console.log(`> ${file} ${args.join(" ")}`);
-  if (!dryRun) execFileSync(file, args, { stdio: "inherit" });
+  // Fixed, non-user-controlled arguments only; a shell is needed on Windows to run the supabase .cmd shim.
+  if (!dryRun)
+    execFileSync(file, args, {
+      stdio: "inherit",
+      shell: process.platform === "win32" && file === "supabase",
+    });
 }
 
 function main() {

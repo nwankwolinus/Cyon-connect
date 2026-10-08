@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { runTsx } from "../support/cli";
 import { findSecrets } from "../../scripts/security/secret-patterns";
 import nextConfig, { securityHeaders } from "@/next.config";
 
@@ -36,11 +37,8 @@ describe("secret detector", () => {
   });
 
   it("the repository scan passes on the current tree", () => {
-    const r = spawnSync(
-      path.join(root, "node_modules/.bin/tsx"),
-      ["scripts/security/scan-secrets.ts"],
-      { cwd: root, encoding: "utf8" },
-    );
+    const r = runTsx("scripts/security/scan-secrets.ts");
+    expect(r.error).toBeUndefined();
     expect(r.stderr).toBe("");
     expect(r.status).toBe(0);
   });

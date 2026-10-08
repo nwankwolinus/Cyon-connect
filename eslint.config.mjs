@@ -50,7 +50,9 @@ const boundaryRules = {
 };
 
 const config = [
-  { ignores: [".next/**", "node_modules/**", "next-env.d.ts", "coverage/**"] },
+  {
+    ignores: [".next/**", "node_modules/**", "next-env.d.ts", "coverage/**", ".arch-fixture-*/**"],
+  },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   // Fast editor feedback; dependency-cruiser (npm run arch:check) is the authoritative gate.
   {

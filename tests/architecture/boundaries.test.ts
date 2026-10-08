@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import os from "node:os";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ESLint } from "eslint";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -97,8 +96,9 @@ describe("architecture: prohibited dependencies are detected", () => {
   };
 
   beforeAll(() => {
-    dir = mkdtempSync(path.join(os.tmpdir(), "arch-fixture-"));
-    symlinkSync(path.join(root, "node_modules"), path.join(dir, "node_modules"));
+    // Inside the repo so bare imports resolve node_modules by walking up: no symlink/junction (needs privileges on Windows).
+    // Directory is gitignored and removed in afterAll.
+    dir = mkdtempSync(path.join(root, ".arch-fixture-"));
     writeFileSync(path.join(dir, "package.json"), "{}");
     for (const [rel, body] of Object.entries(files)) {
       mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
