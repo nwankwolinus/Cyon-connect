@@ -86,11 +86,14 @@ export function isCurrentIdentityRequest(request: number, currentRequest: number
 
 export async function signOutSafely(
   signOut: () => Promise<{ readonly error: unknown | null }>,
-): Promise<"signed_out" | "service_unavailable"> {
+  isCurrent: () => boolean = () => true,
+): Promise<"signed_out" | "service_unavailable" | "stale"> {
   try {
     const result = await signOut();
+    if (!isCurrent()) return "stale";
     return result.error === null ? "signed_out" : "service_unavailable";
   } catch {
+    if (!isCurrent()) return "stale";
     return "service_unavailable";
   }
 }

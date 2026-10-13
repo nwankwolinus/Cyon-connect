@@ -58,12 +58,19 @@ export function IdentityExperience() {
     }
     setSigningOut(true);
     setScreen("checking");
-    requestSequence.current += 1;
-    const outcome = await signOutSafely(() => client.auth.signOut());
+    const signOutRequest = ++requestSequence.current;
+    const outcome = await signOutSafely(
+      () => client.auth.signOut(),
+      () =>
+        mounted.current &&
+        isCurrentIdentityRequest(signOutRequest, requestSequence.current),
+    );
     if (mounted.current) {
-      setScreen(outcome === "signed_out" ? "unauthenticated" : "service_unavailable");
+      if (outcome !== "stale") {
+        setScreen(outcome === "signed_out" ? "unauthenticated" : "service_unavailable");
+      }
+      setSigningOut(false);
     }
-    setSigningOut(false);
   }, []);
 
   const retrySession = useCallback(async () => {

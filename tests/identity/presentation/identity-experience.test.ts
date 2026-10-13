@@ -162,4 +162,12 @@ describe("sign-out outcome", () => {
       }),
     ).resolves.toBe("service_unavailable");
   });
+
+  it("does not apply a sign-out result after a newer auth state supersedes it", async () => {
+    const isCurrent = vi.fn().mockReturnValue(false);
+    await expect(
+      signOutSafely(async () => ({ error: null }), isCurrent),
+    ).resolves.toBe("stale");
+    expect(isCurrent).toHaveBeenCalledOnce();
+  });
 });
