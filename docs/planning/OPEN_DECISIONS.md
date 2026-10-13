@@ -53,13 +53,27 @@ No policy has been selected. Options are for discussion only. Decision owners ar
 
 # Identity database decisions (Sprint 1B.1)
 
-| ID   | Decision / issue                                                                                                                                           | Status                                                                    | Owner                      |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------- |
-| ID-1 | Membership identifier (FR-MEM-003): format, uniqueness scope (global or per parish), when it is assigned                                                   | OPEN; not implemented, the UUID `members.id` is the only identifier today | Secretary / President      |
-| ID-2 | Design of the member profile/PII table and field-level access (FR-MEM-006, FR-MEM-012, FR-PRI-003)                                                         | OPEN: Membership sprint                                                   | Engineering with Secretary |
-| ID-3 | Controlled procedure to erase or re-link an auth identity while keeping history (database currently forbids both)                                          | OPEN                                                                      | Engineering / stakeholders |
-| ID-4 | Should membership status (suspended, archived) also block data access, or only account status? (only account status gates RLS today)                       | OPEN                                                                      | Secretary / President      |
-| ID-5 | Member transfer between parishes and how history is kept (ADR-007)                                                                                         | OPEN                                                                      | Stakeholders               |
-| ID-6 | Confirm account status vocabulary (derived from FR-SEC-004 verbs: pending_activation, active, suspended, deactivated) and what "recovery" means as a state | OPEN: needs confirmation                                                  | Project owner              |
-| ID-7 | Confirm members always belong to a parish (interim CHECK) and the real names/identity of the deanery and archdiocese above the parish                      | OPEN                                                                      | Stakeholders               |
-| ID-8 | Confirm the seeded parish reference row name ("SS Joachim and Anne Catholic Church, Ijegun")                                                               | OPEN                                                                      | Project owner              |
+| ID   | Decision / issue                                                                                                                                           | Status                                                                          | Owner                      |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------- |
+| ID-1 | Membership identifier (FR-MEM-003): format, uniqueness scope (global or per parish), when it is assigned                                                   | OPEN; not implemented, the UUID `members.id` is the only identifier today       | Secretary / President      |
+| ID-2 | Design of the member profile/PII table and field-level access (FR-MEM-006, FR-MEM-012, FR-PRI-003)                                                         | OPEN: Membership sprint                                                         | Engineering with Secretary |
+| ID-3 | Controlled procedure to erase or re-link an auth identity while keeping history (database currently forbids both)                                          | OPEN                                                                            | Engineering / stakeholders |
+| ID-4 | Should membership status (suspended, archived) also block data access, or only account status? (only account status gates RLS today)                       | OPEN for database/RLS; application own-context policy recorded for Sprint 1B.2C | Secretary / President      |
+| ID-5 | Member transfer between parishes and how history is kept (ADR-007)                                                                                         | OPEN                                                                            | Stakeholders               |
+| ID-6 | Confirm account status vocabulary (derived from FR-SEC-004 verbs: pending_activation, active, suspended, deactivated) and what "recovery" means as a state | OPEN: needs confirmation                                                        | Project owner              |
+| ID-7 | Confirm members always belong to a parish (interim CHECK) and the real names/identity of the deanery and archdiocese above the parish                      | OPEN                                                                            | Stakeholders               |
+| ID-8 | Confirm the seeded parish reference row name ("SS Joachim and Anne Catholic Church, Ijegun")                                                               | OPEN                                                                            | Project owner              |
+
+## Project-owner approvals — Sprint 1B.2C (application use-case scope)
+
+Recorded 2026-10-12 from the project owner's approval: FRS v1.0 and Stakeholder Requirements v1.0 are the **working development baseline**, subject to later formal sign-off. This approval does not represent formal requirements sign-off.
+
+For the read-only **Get My Identity** application use case only, the approved normal-access policy is:
+
+- Permit retrieval only when the caller's account is `active` and membership is `active`.
+- Deny normal identity-context access when the account is `pending_activation`, `suspended`, or `deactivated`.
+- Deny normal identity-context access when membership is `pending`, `inactive`, `suspended`, or `archived`, even when the account is active.
+- These access restrictions do not delete or deactivate records and do not define recovery procedures.
+- Administrative exceptions, recovery, activation, status transitions, relinking, transfers, and duplicate-member resolution remain out of scope.
+
+This is application behavior for this use case. It does not change database RLS, grants, persisted statuses, or security policy. ID-4 remains open for database/RLS semantics and other application operations; ID-3, ID-5, ID-6, ID-7, and duplicate-member decision #3 remain open.

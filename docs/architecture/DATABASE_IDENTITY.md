@@ -4,7 +4,7 @@ Migration: `supabase/migrations/20261008090000_identity_foundation.sql`. ERD: `E
 
 ## 1. Scope
 
-Implemented: `org_units`, `members`, `user_accounts`, their constraints, indexes, triggers, grants and RLS. Not implemented (later stages/sprints): TypeScript types/domain/services, API, UI, member profile data, roles/permissions/executive assignments, audit tables, any other business module.
+Implemented: `org_units`, `members`, `user_accounts`, their constraints, indexes, triggers, grants and RLS. Framework-independent identity vocabulary and reference contracts are now defined in `modules/identity/domain/contracts.ts` (Sprint 1B.2A). Not implemented: generated persistence types, lifecycle/domain rules, application services, API, UI, member profile data, roles/permissions/executive assignments, audit tables, or any other business module.
 
 ## 2. ADR-007 gate outcome
 
@@ -95,3 +95,17 @@ FR-SEC-003, BR-CC-001, FR-MEM-002, FR-MEM-009, BR-CC-002, FR-SEC-004, FR-SEC-027
 - Member transfer between parishes is neither modelled nor blocked at the database level (only unreachable for non-service roles); needs ADR-007.
 - Table owners/superusers can still TRUNCATE; protection relies on grants and migration review.
 - Verified on PostgreSQL via PGlite with a stub of Supabase's auth schema, not on the Supabase CLI stack.
+
+## 12. Identity domain contracts (Sprint 1B.2A)
+
+`modules/identity/domain/contracts.ts` defines the migration's current organisation-unit, membership-status, and account-status vocabularies, plus domain-facing references for a member's home parish and its linked account identity. These contracts are not generated database types or persistence-row replicas; persistence integration remains deferred until the Supabase type-generation route is verified.
+
+The contracts do not define status transitions, authorization, or whether inactive, suspended, or archived memberships restrict access. Account recovery and the account-status vocabulary require confirmation (ID-6); membership access semantics remain open (ID-4); organisation scope, member transfers, and the interim parish-only membership constraint remain subject to ADR-007 / ID-5 / ID-7. Duplicate-member resolution (open decision #3), compromised-auth identity handling, and controlled auth identity erasure or relinking (ID-3) also remain unresolved. No behavior depending on those decisions is implemented here.
+
+## 13. Application contract: Get My Identity (Sprint 1B.2C)
+
+The project owner approved FRS v1.0 and Stakeholder Requirements v1.0 as the working development baseline, subject to later formal sign-off. For this read-only use case, normal identity-context retrieval is permitted only for an active account with active membership. Other account or membership statuses are denied. This policy does not change database RLS, persisted records, or lifecycle state; administrative exceptions and recovery are not defined. See `docs/planning/OPEN_DECISIONS.md` for the recorded decision and scope.
+
+`modules/identity/application/get-my-identity.ts` uses a trusted authenticated-user context and an application-owned `IdentityContextReader` port. It returns only account/member identifiers and active statuses plus the home organization identifier/type. Missing or inconsistent links fail closed; a lookup whose auth-user or account/member relationship does not match the trusted caller also fails closed. Denial and unavailable results do not expose identity details.
+
+No Supabase adapter, persistence type, query, authentication flow, API, RLS change, or write operation is included. Database RLS still permits the authenticated user to read their own account row regardless of account status, and its member policy does not check membership status. The application use case applies the narrower approved normal-access policy; this increment does not claim that database access behavior has changed. Recovery, activation, status transitions, relinking, transfers, administrative exceptions, and duplicate resolution remain deferred.
