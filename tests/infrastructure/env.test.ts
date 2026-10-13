@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  parseEnv,
-  privilegedEnvSchema,
-  publicEnvSchema,
-  serverEnvSchema,
-} from "@/infrastructure/config/schema";
+import { parseEnv, publicEnvSchema } from "@/infrastructure/config/public-schema";
+import { privilegedEnvSchema, serverEnvSchema } from "@/infrastructure/config/schema";
 
 describe("environment validation", () => {
   it("accepts valid public config", () => {

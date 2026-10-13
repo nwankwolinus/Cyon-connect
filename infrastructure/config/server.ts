@@ -1,5 +1,6 @@
 import "server-only";
-import { parseEnv, privilegedEnvSchema, serverEnvSchema } from "./schema";
+import { parseEnv } from "./public-schema";
+import { privilegedEnvSchema, serverEnvSchema } from "./schema";
 
 export function getServerEnv() {
   return parseEnv(serverEnvSchema, { APP_ENV: process.env.APP_ENV });

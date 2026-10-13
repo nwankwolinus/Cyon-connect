@@ -1,4 +1,4 @@
-import { parseEnv, publicEnvSchema } from "./schema";
+import { parseEnv, publicEnvSchema } from "./public-schema";
 
 /**
  * Public config. Each variable is referenced statically so Next.js can inline it into browser bundles.
