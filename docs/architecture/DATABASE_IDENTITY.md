@@ -87,7 +87,7 @@ Deliberately **not** generated in this stage. Generation needs the Supabase CLI 
 
 ## 10. Requirement coverage (database foundation only)
 
-FR-SEC-003, BR-CC-001, FR-MEM-002, FR-MEM-009, BR-CC-002, FR-SEC-004, FR-SEC-027, FR-MEMA-005/006, BR-CC-016, FR-SEC-029 and FR-GEN-006 are **partially established**. Nothing is complete: workflows, domain rules, authorization and audit come later. **Deferred:** FR-MEM-003 (membership identifier, format undecided), FR-MEM-006/012 (profile and field-level access), FR-MEM-011 (duplicate detection), BR-CC-003/015 (permissions, assignments).
+FR-SEC-003, BR-CC-001, FR-MEM-002, FR-MEM-009, BR-CC-002, FR-SEC-004, FR-SEC-027, FR-MEMA-005/006, BR-CC-016, FR-SEC-029 and FR-GEN-006 are **partially established**. Nothing is complete: workflows, domain rules, authorization and audit come later. **Deferred implementation:** FR-MEM-003 (membership identifier, format undecided), FR-MEM-006/012 (member-profile storage and field-level access; initial application classifications are recorded in owner-approved MLD-16), FR-MEM-011 (duplicate detection), BR-CC-003/015 (permissions, assignments).
 
 ## 11. Known limitations
 
@@ -109,3 +109,7 @@ The project owner approved FRS v1.0 and Stakeholder Requirements v1.0 as the wor
 `modules/identity/application/get-my-identity.ts` uses a trusted authenticated-user context and an application-owned `IdentityContextReader` port. It returns only account/member identifiers and active statuses plus the home organization identifier/type. Missing or inconsistent links fail closed; a lookup whose auth-user or account/member relationship does not match the trusted caller also fails closed. Denial and unavailable results do not expose identity details.
 
 No Supabase adapter, persistence type, query, authentication flow, API, RLS change, or write operation is included. Database RLS still permits the authenticated user to read their own account row regardless of account status, and its member policy does not check membership status. The application use case applies the narrower approved normal-access policy; this increment does not claim that database access behavior has changed. Recovery, activation, status transitions, relinking, transfers, administrative exceptions, and duplicate resolution remain deferred.
+
+## 14. One-time initial identity provisioning
+
+Migration `20261014080000_initial_identity_provisioning.sql` adds a database-owner-only operation for provisioning the first identity in the CYON Connect development project. It explicitly binds to the existing Auth UUID and a reviewed parish UUID/type/name, creates distinct account/member UUIDs with active statuses, records an audit event, and closes the one-time operation atomically. It never assigns a platform role. Direct `service_role` INSERT/UPDATE on `members` and `user_accounts` is revoked until separately approved write workflows exist; server-side identity reads remain available. The schema cannot deduplicate humans from member rows, so the operation rejects any pre-existing member or account rather than guessing. See `docs/runbooks/INITIAL_IDENTITY_PROVISIONING.md` for the owner-run manual procedure. The Dashboard's human operator record remains a separate audit control; the database records only its caller role and supplied evidence reference.

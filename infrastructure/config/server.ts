@@ -3,7 +3,10 @@ import { parseEnv } from "./public-schema";
 import { privilegedEnvSchema, serverEnvSchema } from "./schema";
 
 export function getServerEnv() {
-  return parseEnv(serverEnvSchema, { APP_ENV: process.env.APP_ENV });
+  return parseEnv(serverEnvSchema, {
+    APP_ENV: process.env.APP_ENV,
+    CYON_ACTIVE_PARISH_ID: process.env.CYON_ACTIVE_PARISH_ID,
+  });
 }
 
 /** Privileged secrets (service role). Call only from server-side infrastructure code. */

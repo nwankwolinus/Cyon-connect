@@ -5,6 +5,10 @@ create role authenticated nologin;
 create role service_role nologin bypassrls;
 
 create schema auth;
+create schema extensions;
+-- Minimal test-only Vault stand-in. It does not model Supabase Vault encryption or grants.
+create schema vault;
+create table vault.decrypted_secrets (name text, decrypted_secret text);
 create table auth.users (id uuid primary key default gen_random_uuid(), email text);
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(coalesce(

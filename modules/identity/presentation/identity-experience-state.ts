@@ -26,6 +26,16 @@ export async function checkIdentity(
   }
 }
 
+/** The protected shell requires both an active identity context and the current caller's platform permission. */
+export async function checkProtectedExperience(
+  fetchIdentity: () => Promise<{ readonly status: number }>,
+  fetchAuthorization: () => Promise<{ readonly status: number }>,
+): Promise<IdentityGateOutcome> {
+  const identityOutcome = await checkIdentity(fetchIdentity);
+  if (identityOutcome !== "permitted") return identityOutcome;
+  return checkIdentity(fetchAuthorization);
+}
+
 export async function resolveSessionIdentity(
   hasSession: boolean,
   verify: () => Promise<IdentityGateOutcome>,

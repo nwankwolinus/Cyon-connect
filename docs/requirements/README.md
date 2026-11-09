@@ -1,13 +1,13 @@
 # Requirements Baseline
 
-The authoritative CYON Connect requirements are maintained **outside this repository**. Do not recreate them here from memory.
+On 22 October 2026, the Project Owner declared CYON-FRS-001 v1.0 formally approved as the CYON Connect requirements baseline and stated that the project documents are intended to guide development of the secured software. This repository records that declaration and the approval scope. It does not independently establish the owner's identity or authority capacity under Project Charter §20 / FRS §28, or identify a separately controlled external original. Do not reconstruct requirement text from memory.
 
-| Document                                              | ID / Version                                                      | Status                                                            |
-| ----------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------- |
-| CYON Connect — Project Definition Document            | —                                                                 | Externally maintained                                             |
-| CYON Connect — Project Charter                        | —                                                                 | Externally maintained                                             |
-| CYON Connect — Functional Requirements Specification  | CYON-FRS-001, v1.0 (Consolidated Requirements Baseline Candidate) | Externally maintained; formal sign-off (FRS §28) not yet recorded |
-| CYON Connect — Stakeholder Requirements Specification | —                                                                 | Externally maintained (supporting)                                |
+| Document                                              | ID / Version                                            | Status                                                                                                                                                                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CYON Connect — Project Definition Document            | —                                                       | Externally maintained                                                                                                                                                                                      |
+| CYON Connect — Project Charter                        | —                                                       | Externally maintained                                                                                                                                                                                      |
+| CYON Connect — Functional Requirements Specification  | CYON-FRS-001, v1.0 (Consolidated Requirements Baseline) | Project Owner declared formal FRS/policy approval on 2026-10-22; local §28 records the declaration. The Charter-defined stakeholder authority alignment is not independently evidenced in this repository. |
+| CYON Connect — Stakeholder Requirements Specification | —                                                       | Externally maintained (supporting)                                                                                                                                                                         |
 
 Implementation must trace to FRS identifiers (FR-GEN, FR-MEM, FR-MEMA, FR-ATT, FR-DUE, FR-FIN, FR-PAY, FR-EVT, FR-ANN, FR-SOC, FR-MSG, FR-NOT, FR-FAI, FR-WEL, FR-ADM, FR-REP, FR-MOB, FR-PRI, FR-AUD, FR-SEC, FR-CC) and business rules BR-CC-001 to BR-CC-017. See `../planning/REQUIREMENTS_TRACEABILITY.md`.
 

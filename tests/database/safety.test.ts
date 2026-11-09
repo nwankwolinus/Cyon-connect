@@ -71,8 +71,15 @@ describe("destructive database operation guard", () => {
 });
 
 describe("database CLI wrapper", () => {
+  // run.ts loads .env.local after process startup. Pin every target locally so a developer's
+  // hosted application URL cannot affect these wrapper-specific dry-run expectations.
   const run = (cmd: string, env: Record<string, string>) =>
-    runTsx("scripts/database/run.ts", [cmd, "--dry-run"], env);
+    runTsx("scripts/database/run.ts", [cmd, "--dry-run"], {
+      SUPABASE_URL: "http://127.0.0.1:54321",
+      NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+      DATABASE_URL: "",
+      ...env,
+    });
 
   it("refuses reset and seed against production and never reaches the supabase/psql step", () => {
     for (const cmd of ["reset", "seed"]) {

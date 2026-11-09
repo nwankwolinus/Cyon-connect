@@ -1,6 +1,6 @@
 # Supabase local development configuration (CLI). Contains no secrets.
 # NOT YET VERIFIED against the Supabase CLI in this repository's CI; see docs/architecture/ARCHITECTURE.md.
-project_id = "cyon-connect"
+project_id = "cyon-connect-security-test-local"
 
 [api]
 enabled = true
@@ -34,8 +34,21 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-site_url = "http://127.0.0.1:3000"
-additional_redirect_urls = ["http://localhost:3000"]
+site_url = "http://localhost:3000"
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "http://localhost:3000/auth/callback?flow=confirmation",
+  "http://localhost:3000/auth/callback?flow=recovery",
+  "http://localhost:3000/auth/reset-password",
+  "http://127.0.0.1:3000/auth/callback",
+  "http://127.0.0.1:3000/auth/callback?flow=confirmation",
+  "http://127.0.0.1:3000/auth/callback?flow=recovery",
+  "http://127.0.0.1:3000/auth/reset-password",
+]
 jwt_expiry = 3600
-# Default-deny: self sign-up stays off until the identity sprint (1B) defines the membership/account flow.
-enable_signup = false
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+# Confirmation is required locally; Supabase auto-confirm must remain disabled.
+enable_confirmations = true

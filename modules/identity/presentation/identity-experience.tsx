@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser";
 import {
-  checkIdentity,
+  checkProtectedExperience,
   isCurrentIdentityRequest,
   mayRenderProtectedShell,
   signInAndVerify,
@@ -31,12 +31,19 @@ export function IdentityExperience() {
     const request = ++requestSequence.current;
     setScreen("checking_identity");
     try {
-      const outcome = await checkIdentity(() =>
-        fetch("/api/identity/me", {
-          method: "GET",
-          cache: "no-store",
-          headers: { accept: "application/json" },
-        }),
+      const outcome = await checkProtectedExperience(
+        () =>
+          fetch("/api/identity/me", {
+            method: "GET",
+            cache: "no-store",
+            headers: { accept: "application/json" },
+          }),
+        () =>
+          fetch("/api/authorization/me", {
+            method: "GET",
+            cache: "no-store",
+            headers: { accept: "application/json" },
+          }),
       );
       if (mounted.current && isCurrentIdentityRequest(request, requestSequence.current)) {
         setScreen(outcome);
@@ -61,9 +68,7 @@ export function IdentityExperience() {
     const signOutRequest = ++requestSequence.current;
     const outcome = await signOutSafely(
       () => client.auth.signOut(),
-      () =>
-        mounted.current &&
-        isCurrentIdentityRequest(signOutRequest, requestSequence.current),
+      () => mounted.current && isCurrentIdentityRequest(signOutRequest, requestSequence.current),
     );
     if (mounted.current) {
       if (outcome !== "stale") {
@@ -120,7 +125,10 @@ export function IdentityExperience() {
       const initialRequest = requestSequence.current;
       try {
         const { data: sessionData, error } = await client.auth.getSession();
-        if (!mounted.current || !isCurrentIdentityRequest(initialRequest, requestSequence.current)) {
+        if (
+          !mounted.current ||
+          !isCurrentIdentityRequest(initialRequest, requestSequence.current)
+        ) {
           return;
         }
         if (error) setScreen("service_unavailable");
@@ -163,8 +171,7 @@ export function IdentityExperience() {
       email.trim(),
       password,
       () =>
-        mounted.current &&
-        isCurrentIdentityRequest(authAttemptRequest, requestSequence.current),
+        mounted.current && isCurrentIdentityRequest(authAttemptRequest, requestSequence.current),
     );
     setPassword("");
     setSubmitting(false);
@@ -177,7 +184,10 @@ export function IdentityExperience() {
       return;
     }
     if (result.kind === "verification_failed") {
-      if (mounted.current && isCurrentIdentityRequest(authAttemptRequest, requestSequence.current)) {
+      if (
+        mounted.current &&
+        isCurrentIdentityRequest(authAttemptRequest, requestSequence.current)
+      ) {
         setScreen("service_unavailable");
       }
       return;
@@ -232,8 +242,8 @@ export function IdentityExperience() {
           <Brand />
           <h1 className="mt-8 text-xl font-semibold">Access unavailable</h1>
           <p className="mt-2 text-sm text-neutral-600">
-            We can&apos;t provide access right now. Please contact your parish administrator if you need
-            help.
+            We can&apos;t provide access right now. Please contact your parish administrator if you
+            need help.
           </p>
           <button
             type="button"

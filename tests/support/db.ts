@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
+import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 
 const root = path.resolve(__dirname, "../..");
 
@@ -8,7 +9,7 @@ export type Db = PGlite;
 
 /** A clean PostgreSQL with a stub of Supabase's auth schema/roles and ALL migrations applied in order. */
 export async function freshDb(): Promise<Db> {
-  const db = new PGlite();
+  const db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(readFileSync(path.join(root, "tests/support/supabase-stub.sql"), "utf8"));
   const dir = path.join(root, "supabase/migrations");
   for (const f of readdirSync(dir)

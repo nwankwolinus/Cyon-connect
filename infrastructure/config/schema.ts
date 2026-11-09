@@ -9,6 +9,8 @@ export type AppEnvironment = (typeof APP_ENVIRONMENTS)[number];
 export const serverEnvSchema = z.object({
   /** Explicit deployment identity. NODE_ENV is not enough: Vercel previews also run NODE_ENV=production. */
   APP_ENV: z.enum(APP_ENVIRONMENTS).default("development"),
+  /** Trusted server-only UUID for the sole operational CYON parish. */
+  CYON_ACTIVE_PARISH_ID: z.string().uuid().optional(),
 });
 
 /** Privileged secrets. Server-only. Never logged, never NEXT_PUBLIC_. */

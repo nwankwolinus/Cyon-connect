@@ -4,12 +4,12 @@ Principle: **authentication ≠ authorization.** RLS is defence in depth; backen
 
 ## Privilege matrix
 
-| Role                         | org_units              | members                | user_accounts          | Functions                      |
-| ---------------------------- | ---------------------- | ---------------------- | ---------------------- | ------------------------------ |
-| `anon`                       | none                   | none                   | none                   | none                           |
-| `authenticated`              | SELECT (RLS)           | SELECT (RLS)           | SELECT (RLS)           | none (`platform_ping` revoked) |
-| `service_role` (server only) | SELECT, INSERT, UPDATE | SELECT, INSERT, UPDATE | SELECT, INSERT, UPDATE | `platform_ping`                |
-| nobody                       | DELETE, TRUNCATE       | DELETE, TRUNCATE       | DELETE, TRUNCATE       |                                |
+| Role                         | org_units              | members          | user_accounts    | Functions                            |
+| ---------------------------- | ---------------------- | ---------------- | ---------------- | ------------------------------------ |
+| `anon`                       | none                   | none             | none             | none                                 |
+| `authenticated`              | SELECT (RLS)           | SELECT (RLS)     | SELECT (RLS)     | none (`platform_ping` revoked)       |
+| `service_role` (server only) | SELECT, INSERT, UPDATE | SELECT           | SELECT           | `platform_ping`; admin bootstrap RPC |
+| nobody                       | DELETE, TRUNCATE       | DELETE, TRUNCATE | DELETE, TRUNCATE |                                      |
 
 ## Policies (all `FOR SELECT TO authenticated`)
 
@@ -23,11 +23,11 @@ There are no INSERT/UPDATE/DELETE policies and no write grants for `authenticate
 
 ## Service role
 
-It bypasses RLS and is never available to clients (server-only modules, import rules, bundle scan from Sprint 1A). Writes (creating members/accounts, changing statuses) must go through server code that has first authorized the actor. It cannot delete or truncate, and constraints, immutability and no-delete triggers still apply to it.
+It bypasses RLS and is never available to clients (server-only modules, import rules, bundle scan from Sprint 1A). Migration `20261014080000_initial_identity_provisioning.sql` revokes direct `INSERT`/`UPDATE` on `members` and `user_accounts`; current service-role application code therefore has identity read access only. The database-owner-only initial provisioning function is not executable by service_role. The separately protected `bootstrap_initial_platform_admin` RPC is the only service-role write entrypoint for authorization bootstrap; it does not write identity records. The role still has direct `org_units` DML as defined by the identity foundation; broader organizational write policy is outside this provisioning increment.
 
 ## Scenarios attempted (see `tests/database/identity.test.ts`)
 
-Unauthenticated read/write/delete (denied); authenticated user without an account (sees nothing); user reading another user's account/member/unit (denied); cross-organisation reads (denied); self-activation of a suspended account (denied); editing own membership status (denied); inserts, deletes and truncates as `authenticated` (denied); service-only function as `authenticated` (denied); service role delete/truncate (denied); service role violating uniqueness or immutability (rejected); suspension revoking RLS visibility immediately.
+Unauthenticated read/write/delete (denied); authenticated user without an account (sees nothing); user reading another user's account/member/unit (denied); cross-organisation reads (denied); self-activation of a suspended account (denied); editing own membership status (denied); inserts, deletes and truncates as `authenticated` (denied); service-only function as `authenticated` (denied); service role delete/truncate and direct member/account insert/update (denied); suspension revoking RLS visibility immediately.
 KILL-CRITIC finding fixed in this stage: the three trigger helper functions were executable by `PUBLIC` (a potential RPC surface); they are now revoked and an invariant test asserts no public function is executable by `PUBLIC`, `anon` or `authenticated`.
 Additionally, seven deliberate mutations of the migration (dropping the active gate, granting UPDATE, dropping a unique constraint, dropping an immutability trigger, loosening the parish check, cascading the auth FK, granting service-role DELETE) were each caught by at least one test.
 
@@ -39,3 +39,7 @@ Additionally, seven deliberate mutations of the migration (dropping the active g
 - Audit trail of status changes.
 - Whether membership status (e.g. suspended) should also block RLS visibility: only account status gates it today (open decision ID-4).
 - Confirmation against real Supabase roles (`authenticator`, PostgREST, Auth hooks): TD-5.
+
+## Initial platform authorization bootstrap
+
+The initial identity-provisioning operation is documented in [DATABASE_IDENTITY.md](DATABASE_IDENTITY.md) and the owner runbook. It is owner-only, one-time, DEV-bound, and atomic with its audit record; it has no application endpoint or role assignment. The later `PLATFORM_ADMIN` authorization boundary is described in [DATABASE_AUTHORIZATION.md](DATABASE_AUTHORIZATION.md) and migration `20261014090000_platform_admin_bootstrap.sql`. Authorization tables are isolated in a private schema with no app-role DML. A service-role-only security-definer RPC requires a Vault-backed, environment-bound HMAC manifest and checks the active identity chain before atomically recording the initial assignment, audit event, operation consumption, and bootstrap closure. Hosted migration deployment and real Supabase execution remain outstanding.

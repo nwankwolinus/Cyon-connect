@@ -19,4 +19,8 @@ Development is part-time, so each sprint has one narrow goal and a demonstrable 
 | 11+    | Web integration, reporting, hardening, UAT, release                                                                                                       | Reports, UAT, release                                                                                                                                     |
 | Later  | Mobile app                                                                                                                                                | After agreed web/backend stability                                                                                                                        |
 
+Membership lifecycle planning decisions and unresolved contract dependencies are consolidated in [MEMBERSHIP_LIFECYCLE_CONTRACT_SPEC.md](MEMBERSHIP_LIFECYCLE_CONTRACT_SPEC.md). This specification does not change the proposed sprint allocation or approve implementation scope.
+
+**Membership workflow checkpoint:** Stage 2 — Membership Application Form is formally accepted and closed by the Project Owner; see [MEMBERSHIP_WORKFLOW_STAGE_2_ACCEPTANCE.md](MEMBERSHIP_WORKFLOW_STAGE_2_ACCEPTANCE.md). The next membership workflow milestone is Stage 3 — Application Submission. Stage 3 planning may begin, but implementation remains gated by its documented privacy, security, access-control, persistence, and approval prerequisites. This checkpoint does not re-baseline the proposed sprint allocation above.
+
 Note: FRS §24.2 lists expanded notifications, enhanced faith formation and expanded welfare as Phase 2. Sprints 9–10 must stay at MVP depth unless scope is formally changed (FR-CC-006).

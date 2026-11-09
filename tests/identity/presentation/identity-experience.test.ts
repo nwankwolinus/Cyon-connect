@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { IdentityExperience } from "@/modules/identity/presentation/identity-experience";
 import {
   checkIdentity,
+  checkProtectedExperience,
   identityGateOutcome,
   isCurrentIdentityRequest,
   mayRenderProtectedShell,
@@ -48,10 +49,43 @@ describe("identity frontend access gate", () => {
     }
   });
 
-  it("maps a thrown network request to a retryable service failure", async () => {
-    await expect(checkIdentity(async () => { throw new Error("network detail"); })).resolves.toBe(
-      "service_unavailable",
+  it("requires HTTP 200 from identity and platform authorization before rendering the shell", async () => {
+    const identity = vi.fn().mockResolvedValue({ status: 200 });
+    const authorization = vi.fn().mockResolvedValue({ status: 200 });
+    const allowed = await checkProtectedExperience(identity, authorization);
+    expect(allowed).toBe("permitted");
+    expect(mayRenderProtectedShell(allowed)).toBe(true);
+
+    authorization.mockResolvedValue({ status: 403 });
+    const denied = await checkProtectedExperience(identity, authorization);
+    expect(denied).toBe("access_unavailable");
+    expect(mayRenderProtectedShell(denied)).toBe(false);
+
+    identity.mockResolvedValue({ status: 404 });
+    authorization.mockClear();
+    const missingIdentity = await checkProtectedExperience(identity, authorization);
+    expect(missingIdentity).toBe("access_unavailable");
+    expect(authorization).not.toHaveBeenCalled();
+    expect(mayRenderProtectedShell(missingIdentity)).toBe(false);
+  });
+
+  it("keeps the shell closed when authorization verification has a network failure", async () => {
+    const outcome = await checkProtectedExperience(
+      async () => ({ status: 200 }),
+      async () => {
+        throw new Error("private authorization detail");
+      },
     );
+    expect(outcome).toBe("service_unavailable");
+    expect(mayRenderProtectedShell(outcome)).toBe(false);
+  });
+
+  it("maps a thrown network request to a retryable service failure", async () => {
+    await expect(
+      checkIdentity(async () => {
+        throw new Error("network detail");
+      }),
+    ).resolves.toBe("service_unavailable");
   });
 
   it("retries identity verification for a live session and denies an expired session", async () => {
@@ -165,9 +199,7 @@ describe("sign-out outcome", () => {
 
   it("does not apply a sign-out result after a newer auth state supersedes it", async () => {
     const isCurrent = vi.fn().mockReturnValue(false);
-    await expect(
-      signOutSafely(async () => ({ error: null }), isCurrent),
-    ).resolves.toBe("stale");
+    await expect(signOutSafely(async () => ({ error: null }), isCurrent)).resolves.toBe("stale");
     expect(isCurrent).toHaveBeenCalledOnce();
   });
 });

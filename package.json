@@ -18,6 +18,8 @@
     "check": "npm run lint && npm run typecheck && npm run arch:check && npm run test && npm run build && npm run security:bundle-scan && npm run secrets:scan",
     "arch:check": "depcruise app modules shared infrastructure components scripts --config .dependency-cruiser.cjs --ts-config tsconfig.json",
     "database:migrate": "tsx scripts/database/run.ts migrate",
+    "bootstrap:initial-admin": "node --conditions=react-server --import tsx scripts/security/bootstrap-initial-platform-admin.ts",
+    "prepare:initial-admin-manifest": "node --conditions=react-server --import tsx scripts/security/prepare-initial-platform-admin-manifest.ts",
     "database:reset": "tsx scripts/database/run.ts reset",
     "database:seed": "tsx scripts/database/run.ts seed",
     "secrets:scan": "tsx scripts/security/scan-secrets.ts",

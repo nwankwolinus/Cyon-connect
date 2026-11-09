@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
+import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const root = path.resolve(__dirname, "../..");
@@ -18,7 +19,7 @@ async function as<T>(role: string, fn: () => Promise<T>) {
 }
 
 beforeAll(async () => {
-  db = new PGlite();
+  db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(readFileSync(path.join(root, "tests/support/supabase-stub.sql"), "utf8"));
   const files = readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))

@@ -25,11 +25,13 @@ describe("schema inventory", () => {
     expect(r.rows).toEqual([]);
   });
 
-  it("exposes no public function to anon, authenticated or PUBLIC (no accidental RPC surface)", async () => {
-    const r = await db.query(
-      "select routine_name, grantee from information_schema.routine_privileges where routine_schema='public' and grantee in ('PUBLIC','anon','authenticated')",
+  it("exposes only the caller-scoped platform-admin boolean RPC to authenticated", async () => {
+    const r = await db.query<{ routine_name: string; grantee: string }>(
+      "select routine_name, grantee from information_schema.routine_privileges where routine_schema='public' and grantee in ('PUBLIC','anon','authenticated') order by 1,2",
     );
-    expect(r.rows).toEqual([]);
+    expect(r.rows).toEqual([
+      { routine_name: "current_user_is_platform_admin", grantee: "authenticated" },
+    ]);
   });
 
   it("stores no credentials: no password/hash/token/secret columns (AC-07)", async () => {
@@ -462,37 +464,36 @@ describe("row level security (default deny)", () => {
     ).rejects.toThrow(/permission denied/i);
   });
 
-  it("the service role (server-side only) can read, insert and update but never delete or truncate", async () => {
+  it("the service role can read identity rows but cannot directly provision or change them", async () => {
     const p = await seed.person(db, { membership: "active", account: "active" });
     const sr = (sql: string, params: unknown[] = []) =>
       as(db, "service_role", null, () => db.query(sql, params));
     const all = await sr("select id from public.members where id=$1", [p.memberId]);
     expect(ids(all)).toEqual([p.memberId]);
-    await sr("update public.user_accounts set account_status='suspended' where id=$1", [
-      p.accountId,
-    ]);
-    const m = await sr("insert into public.members (org_unit_id) values ($1) returning id", [
-      await seed.parishId(db),
-    ]);
-    expect(m.rows).toHaveLength(1);
+    await expect(
+      sr("update public.user_accounts set account_status='suspended' where id=$1", [p.accountId]),
+    ).rejects.toThrow(/permission denied/i);
+    await expect(
+      sr("insert into public.members (org_unit_id) values ($1) returning id", [
+        await seed.parishId(db),
+      ]),
+    ).rejects.toThrow(/permission denied/i);
     for (const t of ["org_units", "members", "user_accounts"]) {
       await expect(sr(`delete from public.${t}`)).rejects.toThrow(/permission denied/i);
       await expect(sr(`truncate public.${t}`)).rejects.toThrow(/permission denied/i);
     }
   });
 
-  it("the service role still cannot bypass integrity constraints", async () => {
+  it("database constraints still guard identity writes by the database owner", async () => {
     const p = await seed.person(db);
-    const sr = (sql: string, params: unknown[] = []) =>
-      as(db, "service_role", null, () => db.query(sql, params));
     await expect(
-      sr("insert into public.user_accounts (auth_user_id, member_id) values ($1,$2)", [
+      db.query("insert into public.user_accounts (auth_user_id, member_id) values ($1,$2)", [
         await seed.authUser(db),
         p.memberId,
       ]),
     ).rejects.toThrow(/duplicate key/i);
     await expect(
-      sr("update public.members set id=gen_random_uuid() where id=$1", [p.memberId]),
+      db.query("update public.members set id=gen_random_uuid() where id=$1", [p.memberId]),
     ).rejects.toThrow(/immutable/i);
   });
 });

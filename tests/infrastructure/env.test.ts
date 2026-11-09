@@ -1,8 +1,37 @@
 import { describe, expect, it } from "vitest";
 import { parseEnv, publicEnvSchema } from "@/infrastructure/config/public-schema";
+import {
+  assertDevelopmentSupabaseTarget,
+  getPasswordUpdateDestination,
+  getTrustedAppDestination,
+} from "@/infrastructure/config/public";
 import { privilegedEnvSchema, serverEnvSchema } from "@/infrastructure/config/schema";
 
 describe("environment validation", () => {
+  it("restricts local development to the security-test project", () => {
+    expect(() =>
+      assertDevelopmentSupabaseTarget("https://crfcglxcsnmeovnipnko.supabase.co", "development"),
+    ).not.toThrow();
+    expect(() =>
+      assertDevelopmentSupabaseTarget("https://bpooqfgadtbyeduapwyi.supabase.co", "development"),
+    ).toThrow("Development Supabase target must be the CYON security-test project.");
+    expect(() =>
+      assertDevelopmentSupabaseTarget("http://crfcglxcsnmeovnipnko.supabase.co", "development"),
+    ).toThrow("Invalid Supabase URL.");
+    expect(() =>
+      assertDevelopmentSupabaseTarget("https://other.supabase.co", "test"),
+    ).not.toThrow();
+  });
+
+  it("constructs only fixed internal app destinations from trusted configuration", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000/ignored/base";
+    const destination = getTrustedAppDestination("/applicant/sign-in", "confirmed");
+    expect(destination.toString()).toBe("http://localhost:3000/applicant/sign-in?status=confirmed");
+    expect(getPasswordUpdateDestination().toString()).toBe(
+      "http://localhost:3000/auth/reset-password?mode=update",
+    );
+  });
+
   it("accepts valid public config", () => {
     const env = parseEnv(publicEnvSchema, {
       NEXT_PUBLIC_APP_URL: "http://localhost:3000",
@@ -31,6 +60,16 @@ describe("environment validation", () => {
   it("APP_ENV defaults to development and rejects unknown values", () => {
     expect(parseEnv(serverEnvSchema, {}).APP_ENV).toBe("development");
     expect(() => parseEnv(serverEnvSchema, { APP_ENV: "prod" })).toThrow(/APP_ENV/);
+  });
+
+  it("accepts only a UUID for the optional server-side operational parish setting", () => {
+    expect(
+      parseEnv(serverEnvSchema, { CYON_ACTIVE_PARISH_ID: "4e784b43-7c94-4dd7-a215-a4f4c6b88070" })
+        .CYON_ACTIVE_PARISH_ID,
+    ).toBe("4e784b43-7c94-4dd7-a215-a4f4c6b88070");
+    expect(() => parseEnv(serverEnvSchema, { CYON_ACTIVE_PARISH_ID: "not-a-uuid" })).toThrow(
+      /CYON_ACTIVE_PARISH_ID/,
+    );
   });
 
   it("service-role key is separated from the public and server schemas", () => {
