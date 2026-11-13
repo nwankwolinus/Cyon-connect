@@ -4,7 +4,7 @@
 
 This is a conceptual schema proposal for review, not an approved physical schema or migration. The Project Owner declared formal CYON policy/FRS approval on 2026-10-22; the declaration and scope are recorded in `docs/planning/MEMBERSHIP_LIFECYCLE_OWNER_APPROVAL.md`. The repository does not independently establish the owner's identity or capacity under Charter §20 / FRS §28. This model records approved policy/design direction but does not implement it.
 
-No physical database objects, persisted application-state names, permission identifiers, duplicate thresholds, activation mechanisms, or retention periods are approved by this conceptual model. All proposed entity/attribute labels are illustrative only; the policy directions they must support are recorded as owner-approved in the linked decision record.
+No physical database objects, permission identifiers, activation mechanisms, or numeric retention periods are approved by this conceptual model. The application-status vocabulary and owner policy terms are approved in [STAGE_3_OWNER_APPROVED_REQUIREMENTS.md](../planning/STAGE_3_OWNER_APPROVED_REQUIREMENTS.md); proposed entity/attribute labels remain illustrative only and must support that baseline.
 
 ## 2. Verified constraints
 
@@ -24,11 +24,11 @@ Requirements references verified in `docs/planning/REQUIREMENTS_TRACEABILITY.md`
 
 One durable record per submitted attempt, whether initial or resubmitted. This is the authoritative record of what was submitted and the submission's eventual application outcome. It is not a member identity, Auth identity, or application account.
 
-Illustrative concepts only: an application identifier, submitted time, target parish/reference, applicant-data reference, submission idempotency reference, and an optional reference to the prior rejected application. Do not define the application status/outcome vocabulary until approved.
+Illustrative concepts only: an application identifier, submitted time, target parish/reference, applicant-data reference, submission idempotency reference, and an optional reference to the prior rejected application. The owner-approved status vocabulary is Draft, Submitted, Under Review, On Hold, Approved, Rejected, Withdrawn, and Closed; its physical representation remains a design choice.
 
 **Invariants:** a retry of the same submission operation must not create a second record; a genuine resubmission is a distinct record; an old application and its submission data/history are retained according to approved privacy and retention policy. No unique email/name/phone constraint is proposed as person identity. A database foreign key or unique application-to-member link can prevent invalid references or multiple links for one application, but cannot prove the `FR-MEM-002` invariant that there is one member record per person.
 
-**Open:** application state names, submission completeness, applicant/Auth linkage, operation-scoped idempotency token lifecycle (including payload mismatch and retention behavior), retention/disposal and applicant access.
+**Open technical work:** representation/enforcement of the approved states, submission completeness, applicant/Auth linkage constraints, operation-scoped idempotency persistence, and implementation of retention/disposal and access controls. State names are not open.
 
 ### 3.2 Resubmission relationship — proposed
 
@@ -55,7 +55,7 @@ Business review history records application-level decisions and material review 
 
 Because `members` intentionally contains no profile/PII fields, an application needs protected submission data. Prefer application-owned submitted data or a separate tightly protected application-data representation, rather than treating `members` as the application or silently reusing a mutable profile as a historical submission snapshot.
 
-**Open:** actual fields, whether data is embedded in a protected application record or stored separately, applicant editing rules, field-level access, masking, retention/deletion, privacy/legal requirements, and whether each resubmission snapshots a fresh submission. Do not copy applicant PII into general audit events.
+**Open technical work:** persistence representation, field-level enforcement, masking, deletion, and resubmission snapshots. DOB must be separated from ordinary application/member records, envelope-encrypted with managed KMS protection, and decryptable only by the restricted eligibility service per S3D-04A/05C. Do not copy DOB, sacramental details, or unnecessary PII into audit events. Numeric retention periods require the approved schedule.
 
 ### 3.5 Member association — proposed, optional until established
 
@@ -180,3 +180,9 @@ These are design acceptance criteria, not implementation or test claims.
 ## 11. Out of scope
 
 No SQL, schema, migration, code, permissions, API, tests, matching algorithm, identity repair, merge, transfer, or account activation behavior is authorized by this conceptual proposal. The Sprint Roadmap remains proposed and unchanged.
+
+## 12. Stage 3 controlling owner decisions
+
+The Stage 3 owner-approved baseline at [STAGE_3_OWNER_APPROVED_REQUIREMENTS.md](../planning/STAGE_3_OWNER_APPROVED_REQUIREMENTS.md) controls application status, DOB eligibility/confidentiality, reviewer role boundaries, duplicate indicators/evidence/dispositions, retention principles, notification requirements, and transactional idempotency. The previous statement that application-state names remain undecided is superseded. S3D-05's 16–40 age eligibility rule supersedes MLD-16's earlier absence of an age limit.
+
+Owner approval is not implementation evidence. The professional assessment, approved numeric retention schedule, KMS/security assessment, and technical schema/enforcement are not located or implemented in this repository. No physical schema is approved by this conceptual proposal.

@@ -8,6 +8,7 @@ export async function GET(request: Request): Promise<Response> {
   const requestUrl = new URL(request.url);
   const result = await consumeApplicantAuthCallback({
     code: requestUrl.searchParams.get("code"),
+    tokenHash: requestUrl.searchParams.get("token_hash"),
     flow: requestUrl.searchParams.get("flow"),
   });
   if (result.kind === "verified") {

@@ -2,7 +2,7 @@
 
 ## 1. Purpose and status
 
-This specification defines the authentication foundation required before CYON Connect accepts prospective-applicant data. The repository now implements local registration, confirmation callback, password recovery, verified applicant sign-in, and a protected placeholder applicant page using the existing Supabase Auth and Next.js architecture. This does not implement membership-application data access and does not establish that hosted Auth settings or email delivery have been verified.
+This specification defines the authentication foundation for prospective applicants. The repository implements local registration, confirmation callback, password recovery, verified applicant sign-in, and the authenticated Stage 2 membership form using the existing Supabase Auth and Next.js architecture. Form entries remain in client-side memory; this specification does not implement application data access or persistence and does not establish that all hosted Auth settings or email delivery are verified.
 
 The current product is a single-parish application for SS Joachim and Anne Catholic Church, Ijegun. Parish intake scope is established separately by the server-side operational-parish resolver; registration does not establish parish membership or belonging.
 
@@ -13,6 +13,7 @@ The current product is a single-parish application for SS Joachim and Anne Catho
 - `infrastructure/supabase/trusted-authenticated-user.ts` requires a session and obtains the Auth principal from `auth.getUser()`. It does not trust a caller-supplied user ID.
 - `modules/identity/presentation/identity-experience.tsx` and its state helpers implement existing email/password sign-in, sign-out, and protected-shell checks against `/api/identity/me` and `/api/authorization/me`. This is the existing-member experience; an Auth identity without the required member/account links is denied by that flow.
 - `modules/applicant-auth` and the `applicant`/`auth` routes implement registration, PKCE callback exchange, recovery request/password update, and server-verified applicant access. There is no membership-application submission or persistence route.
+- The CYON registration application route now requires a date-only DOB input and runs the server-only exact-birthday eligibility check before calling Supabase Auth. Ages 16–40 inclusive pass; below 16 and above 40 do not. DOB is not forwarded to Supabase Auth, stored by this route, or included in its response. This route-level check does not prove that direct provider signup is blocked; provider-level bypass and hosted/local Auth configuration remain unverified. Do not enable applicant intake based on this check alone.
 - `middleware.ts` refreshes cookies only for `/applicant/*`, `/auth/*`, and `/api/applicant-auth/*`; the protected page and password-update operation independently require a server-verified, email-confirmed Auth user.
 - `supabase/config.toml` is local configuration with `project_id = "cyon-connect-security-test-local"`. It enables signup and email confirmation, sets Site URL `http://localhost:3000`, and lists exact callback/reset paths for `localhost` and `127.0.0.1`. The installed CLI is `2.120.0`; its local `status` inspection could not inspect containers because Docker Desktop was unavailable, and the CLI exposes no start dry-run flag. The file therefore remains unvalidated by the CLI. It does not establish hosted project settings, SMTP/delivery, CAPTCHA, or effective rate limits.
 - The identity schema relates `user_accounts` to `auth.users`; it does not require every Auth user to have a `user_accounts` or `members` row. Prospective Auth identity can therefore remain separate from membership identity. No account or member may be created as a registration side effect.
@@ -28,7 +29,7 @@ The following is the proposed flow. It must not be enabled until the configurati
 4. **Confirm:** `/auth/callback` consumes the one-time PKCE authorization code through `exchangeCodeForSession`, then calls `getUser()` and requires `email_confirmed_at`. It never trusts callback query data as an Auth ID and redirects only to a fixed same-application destination. Expired, invalid, malformed, or replayed codes fail closed with a generic result and no applicant access. The `flow` query selects only the fixed landing page; it is not identity or authorization evidence.
 5. **Sign in:** After successful confirmation, the applicant signs in with email/password. If the provider's confirmation exchange establishes a session, that session is still not sufficient by itself: protected applicant operations must independently validate the current Auth user server-side. The application must not grant access based solely on landing on the callback URL.
 6. **Resolve principal:** Each future protected applicant operation obtains the cookie-backed server client, checks for a session, then calls `auth.getUser()`. The trusted Auth UUID returned by that call is the sole owner key. An unconfirmed, missing, invalid, expired, or unverifiable identity is denied. Never use a request body, query parameter, email, session-embedded user ID, or application ID as owner proof.
-7. **Access application functionality:** Once a membership-application feature is separately implemented, the applicant may access only records whose persisted Auth owner UUID equals this verified principal and whose state permits the requested operation. The `/applicant` page currently verifies Auth only and exposes no application records or submission route; the existing member shell must continue to deny an Auth-only applicant.
+7. **Access application functionality:** The `/applicant` page now renders the Stage 2 membership form after verified Auth access. Its form data is temporary client-side memory; there are no application records or submission route. When persistence is implemented, the applicant may access only records whose persisted Auth owner UUID equals this verified principal and whose state permits the requested operation. The existing member shell must continue to deny an Auth-only applicant.
 
 ### Registration edge cases
 
@@ -104,7 +105,7 @@ Local files cannot establish the hosted Dashboard's signup, confirmation, mail, 
 
 ## 9. Implementation gates and acceptance evidence
 
-Applicant Auth implementation may proceed after the owner records the non-production project reference and verifies the Dashboard checklist, and after the callback and recovery URLs are selected from the trusted application origin. Before enabling any applicant application access, demonstrate:
+Local Auth and Stage 2 form access exist. Before enabling server-side application submission/persistence or reviewer access, demonstrate:
 
 1. Signup creates only an Auth identity and leaves `members` and `user_accounts` unchanged.
 2. Email confirmation delivery and callback succeed in the intended non-production environment; unconfirmed, expired, malformed, and replayed proofs deny access.
@@ -115,7 +116,7 @@ Applicant Auth implementation may proceed after the owner records the non-produc
 7. Recovery changes only the same Auth principal's password and creates no member/account/role changes.
 8. Rate limiting and CAPTCHA behavior are verified in the intended environment; sensitive values and links do not appear in output/logs.
 
-Until these checks pass, do not enable application intake or accept applicant membership-application PII. This Auth implementation adds no membership application persistence, reviewer permissions, duplicate screening, approval, member/account creation, or activation.
+Until the applicable checks and Stage 3 gates pass, do not submit or persist applicant membership-application PII on the server or expose it to reviewers. Stage 2 form data remains in temporary browser memory only. This Auth implementation adds no membership application persistence, reviewer permissions, duplicate screening, approval, member/account creation, or activation.
 
 ## 10. External provider references
 

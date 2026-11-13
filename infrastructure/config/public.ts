@@ -10,6 +10,16 @@ export function assertDevelopmentSupabaseTarget(url: string, nodeEnv = process.e
   try {
     const parsed = new URL(url);
     hostname = parsed.hostname;
+    const isLocalSupabase =
+      (hostname === "127.0.0.1" || hostname === "localhost") &&
+      parsed.protocol === "http:" &&
+      parsed.port === "54321" &&
+      parsed.username === "" &&
+      parsed.password === "" &&
+      parsed.pathname === "/" &&
+      parsed.search === "" &&
+      parsed.hash === "";
+    if (isLocalSupabase) return;
     if (
       parsed.protocol !== "https:" ||
       parsed.port ||

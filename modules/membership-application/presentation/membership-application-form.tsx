@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useReducer, useState, type FormEvent } from "react";
+import React, { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
 
 type SacramentStatus = "" | "received" | "not_received" | "unknown";
 type Sacrament = { status: SacramentStatus; date: string; place: string };
@@ -93,6 +93,14 @@ export type MembershipApplicationFormState = {
   readonly reviewed: boolean;
 };
 
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends readonly unknown[]
+    ? T[K]
+    : T[K] extends object
+      ? DeepPartial<T[K]>
+      : T[K];
+};
+
 export type MembershipApplicationFormAction =
   | { readonly type: "set-step"; readonly stepIndex: number }
   | {
@@ -115,7 +123,8 @@ export type MembershipApplicationFormAction =
   | { readonly type: "toggle-society"; readonly name: string }
   | { readonly type: "set-no-societies"; readonly selected: boolean }
   | { readonly type: "set-other-society"; readonly selected: boolean }
-  | { readonly type: "mark-reviewed" };
+  | { readonly type: "mark-reviewed" }
+  | { readonly type: "reset" };
 
 export const ARCHDIOCESAN_SOCIETY_OPTIONS = [
   "Lagos Archdiocesan Catholic Men Organization of Nigeria (LACMON)",
@@ -174,6 +183,43 @@ export const ARCHDIOCESAN_SOCIETY_OPTIONS = [
 
 export function createInitialMembershipApplicationFormState(): MembershipApplicationFormState {
   return { draft: createInitialMembershipApplicationDraft(), stepIndex: 0, reviewed: false };
+}
+
+export function restoreMembershipApplicationFormState(
+  saved: DeepPartial<MembershipApplicationDraft> | null | undefined,
+  activeStep = 0,
+): MembershipApplicationFormState {
+  const empty = createInitialMembershipApplicationDraft();
+  const savedSacraments = saved?.sacraments;
+  return {
+    draft: {
+      ...empty,
+      ...saved,
+      // DOB is never persisted; an applicant re-enters it after resuming.
+      dateOfBirth: "",
+      residential: { ...empty.residential, ...saved?.residential },
+      permanent: { ...empty.permanent, ...saved?.permanent },
+      sacraments: {
+        baptism: { ...empty.sacraments.baptism, ...savedSacraments?.baptism },
+        communion: { ...empty.sacraments.communion, ...savedSacraments?.communion },
+        confirmation: { ...empty.sacraments.confirmation, ...savedSacraments?.confirmation },
+        matrimonyApplicable:
+          savedSacraments?.matrimonyApplicable ?? empty.sacraments.matrimonyApplicable,
+        matrimony: { ...empty.sacraments.matrimony, ...savedSacraments?.matrimony },
+      },
+    },
+    stepIndex: Math.max(0, Math.min(activeStep, 9)),
+    reviewed: false,
+  };
+}
+
+function draftPayloadWithoutDob(
+  draft: MembershipApplicationDraft,
+): Omit<MembershipApplicationDraft, "dateOfBirth"> {
+  return Object.fromEntries(Object.entries(draft).filter(([key]) => key !== "dateOfBirth")) as Omit<
+    MembershipApplicationDraft,
+    "dateOfBirth"
+  >;
 }
 
 export function membershipApplicationFormReducer(
@@ -261,6 +307,8 @@ export function membershipApplicationFormReducer(
       };
     case "mark-reviewed":
       return { ...state, reviewed: true };
+    case "reset":
+      return createInitialMembershipApplicationFormState();
   }
 }
 
@@ -280,37 +328,97 @@ type Draft = MembershipApplicationDraft;
 type Step = (typeof steps)[number];
 type Errors = Record<string, string>;
 
-export function MembershipApplicationForm({ verifiedEmail }: { readonly verifiedEmail: string }) {
+export function MembershipApplicationForm({
+  verifiedEmail,
+  submissionEnabled = false,
+  draftPersistenceEnabled = false,
+  initialDraft = null,
+  initialStep = 0,
+  initialDraftUpdatedAt = null,
+  initialDraftId = null,
+  initialPassportPhotoId = null,
+}: {
+  readonly verifiedEmail: string;
+  readonly submissionEnabled?: boolean;
+  readonly draftPersistenceEnabled?: boolean;
+  readonly initialDraft?: DeepPartial<MembershipApplicationDraft> | null;
+  readonly initialStep?: number;
+  readonly initialDraftUpdatedAt?: string | null;
+  readonly initialDraftId?: string | null;
+  readonly initialPassportPhotoId?: string | null;
+}) {
   const [formState, dispatch] = useReducer(
     membershipApplicationFormReducer,
-    undefined,
-    createInitialMembershipApplicationFormState,
+    restoreMembershipApplicationFormState(initialDraft, initialStep),
   );
-  const { draft, stepIndex, reviewed } = formState;
+  const { draft, stepIndex } = formState;
   const [errors, setErrors] = useState<Errors>({});
   const [notice, setNotice] = useState("");
+  const [submissionError, setSubmissionError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [applicationReference, setApplicationReference] = useState("");
+  const [passportPhotoId, setPassportPhotoId] = useState<string | null>(initialPassportPhotoId);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveMessage, setSaveMessage] = useState("");
+  const retryKey = useRef<{ payload: string; key: string } | null>(null);
+  const submissionInFlight = useRef(false);
+  const draftUpdatedAt = useRef<string | null>(initialDraftUpdatedAt);
+  const draftId = useRef<string | null>(initialDraftId);
+  const draftDirty = useRef(false);
+  const draftRevision = useRef(0);
+  const saveSequence = useRef(0);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const saveProgressRef = useRef<
+    (snapshot?: MembershipApplicationDraft, snapshotStep?: number) => Promise<void>
+  >(() => Promise.resolve());
+  const [requiresDobReentry, setRequiresDobReentry] = useState(Boolean(initialDraft));
+  const [resumeDob, setResumeDob] = useState("");
+  const [resumeDobError, setResumeDobError] = useState("");
   const step = steps[stepIndex] ?? "Personal information";
   const fieldErrors = errors;
 
   function update<K extends keyof Draft>(key: K, value: Draft[K]) {
+    if (submitting) return;
+    draftDirty.current = true;
+    draftRevision.current += 1;
     dispatch({ type: "update-field", field: key, value });
   }
   function updateAddress(key: "residential" | "permanent", field: keyof Address, value: string) {
+    if (submitting) return;
+    draftDirty.current = true;
+    draftRevision.current += 1;
     dispatch({ type: "update-address", address: key, field, value });
   }
   function updateSacrament(key: SacramentName, value: Sacrament) {
+    if (submitting) return;
+    draftDirty.current = true;
+    draftRevision.current += 1;
     dispatch({ type: "update-sacrament", sacrament: key, value });
   }
   function updateMatrimonyApplicability(value: string) {
+    if (submitting) return;
+    draftDirty.current = true;
+    draftRevision.current += 1;
     dispatch({ type: "update-matrimony-applicability", value });
   }
   function toggleSociety(name: string) {
+    if (submitting) return;
+    draftDirty.current = true;
+    draftRevision.current += 1;
     dispatch({ type: "toggle-society", name });
   }
   function setNoSocieties(selected: boolean) {
+    if (submitting) return;
+    draftDirty.current = true;
+    draftRevision.current += 1;
     dispatch({ type: "set-no-societies", selected });
   }
   function setOtherSociety(selected: boolean) {
+    if (submitting) return;
+    draftDirty.current = true;
+    draftRevision.current += 1;
     dispatch({ type: "set-other-society", selected });
   }
 
@@ -323,11 +431,180 @@ export function MembershipApplicationForm({ verifiedEmail }: { readonly verified
       return;
     }
     setNotice("");
+    draftDirty.current = true;
+    draftRevision.current += 1;
     dispatch({ type: "set-step", stepIndex: stepIndex + 1 });
   }
 
-  function finishReview(event: FormEvent<HTMLFormElement>) {
+  function saveProgress(
+    snapshot: MembershipApplicationDraft = draft,
+    snapshotStep: number = stepIndex,
+  ): Promise<void> {
+    if (!draftPersistenceEnabled || submitting || applicationReference) return Promise.resolve();
+    const sequence = ++saveSequence.current;
+    const revision = draftRevision.current;
+    setSaveState("saving");
+    setSaveMessage("");
+    const payload = draftPayloadWithoutDob(snapshot);
+    saveQueue.current = saveQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          const response = await fetch("/api/membership-applications/draft", {
+            method: "PUT",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              payload,
+              activeStep: snapshotStep,
+              expectedUpdatedAt: draftUpdatedAt.current,
+            }),
+          });
+          const result: unknown = await response.json().catch(() => null);
+          if (
+            response.ok &&
+            result &&
+            typeof result === "object" &&
+            "updatedAt" in result &&
+            typeof result.updatedAt === "string" &&
+            "draftId" in result &&
+            typeof result.draftId === "string"
+          ) {
+            draftUpdatedAt.current = result.updatedAt;
+            draftId.current = result.draftId;
+            if (sequence === saveSequence.current && revision === draftRevision.current) {
+              draftDirty.current = false;
+              setSaveState("saved");
+              setSaveMessage("Saved. Drafts expire 30 days after the last successful save.");
+            } else if (sequence === saveSequence.current) {
+              setSaveState("saving");
+              setSaveMessage("New changes are waiting to be saved.");
+            }
+          } else if (sequence === saveSequence.current) {
+            setSaveState("error");
+            setSaveMessage(
+              response.status === 409
+                ? "This draft changed in another session. Reload to get the latest saved version, then try again."
+                : "Unable to save — retry. Your current entries remain on this page.",
+            );
+          }
+        } catch {
+          if (sequence === saveSequence.current) {
+            setSaveState("error");
+            setSaveMessage("Unable to save — retry. Your current entries remain on this page.");
+          }
+        }
+      });
+    return saveQueue.current;
+  }
+  saveProgressRef.current = saveProgress;
+
+  async function uploadPassportPhoto(file: File) {
+    if (photoBusy || submitting || applicationReference) return;
+    setPhotoError("");
+    if (!draftId.current) await saveProgress();
+    if (!draftId.current || saveState === "error") {
+      setPhotoError("Save your draft before uploading the photograph, then retry.");
+      return;
+    }
+    setPhotoBusy(true);
+    try {
+      const form = new FormData();
+      form.set("draftId", draftId.current);
+      form.set("file", file);
+      const response = await fetch("/api/membership-applications/photo", {
+        method: "PUT",
+        credentials: "same-origin",
+        body: form,
+      });
+      const result: unknown = await response.json().catch(() => null);
+      if (
+        !response.ok ||
+        !result ||
+        typeof result !== "object" ||
+        !("photoId" in result) ||
+        typeof result.photoId !== "string"
+      ) {
+        setPhotoError(
+          result &&
+            typeof result === "object" &&
+            "message" in result &&
+            typeof result.message === "string"
+            ? result.message
+            : "The photograph could not be saved. Please retry.",
+        );
+        return;
+      }
+      setPassportPhotoId(result.photoId);
+      setSaveMessage("Photograph saved with your draft.");
+    } catch {
+      setPhotoError("The photograph could not be saved. Check your connection and retry.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function removePassportPhoto() {
+    if (!draftId.current || photoBusy || submitting || applicationReference) return;
+    setPhotoBusy(true);
+    setPhotoError("");
+    try {
+      const response = await fetch("/api/membership-applications/photo", {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ draftId: draftId.current }),
+      });
+      if (!response.ok) {
+        setPhotoError("The photograph could not be removed. Please retry.");
+        return;
+      }
+      setPassportPhotoId(null);
+      setSaveMessage("Photograph removed from the draft.");
+    } catch {
+      setPhotoError("The photograph could not be removed. Check your connection and retry.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  // Warn before leaving when the latest local state has not yet been durably saved.
+  useEffect(() => {
+    if (!draftPersistenceEnabled || !draftDirty.current || submitting || applicationReference)
+      return;
+    const timer = window.setTimeout(() => void saveProgressRef.current(draft, stepIndex), 800);
+    return () => window.clearTimeout(timer);
+  }, [draft, stepIndex, draftPersistenceEnabled, submitting, applicationReference]);
+
+  useEffect(() => {
+    if (!draftDirty.current && saveState !== "saving" && saveState !== "error") return;
+    const warnBeforeLeave = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeave);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeave);
+  }, [draft, saveState]);
+
+  function preventImplicitSubmission(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+  }
+
+  async function submitApplication() {
+    // This action is called only by the final review button. The synchronous ref guard
+    // also closes the gap before React commits the disabled/loading state.
+    if (
+      submissionInFlight.current ||
+      submitting ||
+      applicationReference ||
+      stepIndex !== steps.length - 1
+    ) {
+      return;
+    }
+    if (!passportPhotoId) {
+      setSubmissionError("Upload a valid passport photograph before submitting your application.");
+      return;
+    }
     const result = validateMembershipApplicationDraft(draft);
     setErrors(result);
     if (Object.keys(result).length) {
@@ -338,9 +615,126 @@ export function MembershipApplicationForm({ verifiedEmail }: { readonly verified
       setNotice("Please complete the highlighted required information before reviewing.");
       return;
     }
-    dispatch({ type: "mark-reviewed" });
-    setNotice(
-      "Your information is complete for review in this session. It has not been submitted or saved.",
+    setSubmissionError("");
+    submissionInFlight.current = true;
+    setSubmitting(true);
+    const serializedDraft = JSON.stringify({ draft, passportPhotoId });
+    if (retryKey.current?.payload !== serializedDraft) {
+      retryKey.current = { payload: serializedDraft, key: crypto.randomUUID() };
+    }
+    try {
+      const response = await fetch("/api/membership-applications/submit", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": retryKey.current.key,
+        },
+        body: JSON.stringify({ draft, passportPhotoId }),
+      });
+      const result: unknown = await response.json().catch(() => null);
+      if (
+        response.ok &&
+        result &&
+        typeof result === "object" &&
+        "applicationReference" in result &&
+        typeof result.applicationReference === "string"
+      ) {
+        draftDirty.current = false;
+        setSaveState("saved");
+        setApplicationReference(result.applicationReference);
+        setNotice(
+          "Your application has been submitted for parish review. Submission is not membership approval.",
+        );
+        return;
+      }
+      const safeMessage =
+        result &&
+        typeof result === "object" &&
+        "message" in result &&
+        typeof result.message === "string"
+          ? result.message
+          : "The application could not be submitted. Please try again.";
+      setSubmissionError(safeMessage);
+    } catch {
+      setSubmissionError(
+        "The application could not be submitted. Check your connection and retry.",
+      );
+    } finally {
+      submissionInFlight.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  if (applicationReference) {
+    return (
+      <section className="mx-auto max-w-3xl px-4 py-10 sm:px-6" aria-labelledby="submitted-heading">
+        <div className="rounded-xl border border-green-200 bg-white p-6 shadow-sm sm:p-8">
+          <p className="text-sm font-semibold text-green-800">Application submitted</p>
+          <h1 id="submitted-heading" className="mt-2 text-2xl font-bold">
+            Thank you for your application
+          </h1>
+          <p className="mt-3 text-sm text-neutral-700">{notice}</p>
+          <p className="mt-5 text-sm font-medium text-neutral-700">Application reference</p>
+          <p className="mt-1 break-all font-mono text-sm" aria-label="Application reference">
+            {applicationReference}
+          </p>
+          <p className="mt-4 text-sm text-neutral-600">Keep this reference for future enquiries.</p>
+          <a
+            href="/applicant"
+            className="mt-6 inline-flex rounded-md bg-neutral-900 px-5 py-3 text-sm font-semibold text-white"
+          >
+            View My Application
+          </a>
+        </div>
+      </section>
+    );
+  }
+
+  if (requiresDobReentry) {
+    return (
+      <section
+        className="mx-auto max-w-3xl px-4 py-10 sm:px-6"
+        aria-labelledby="resume-dob-heading"
+      >
+        <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
+          <h1 id="resume-dob-heading" className="text-2xl font-bold">
+            Resume your application
+          </h1>
+          <p className="mt-2 text-sm text-neutral-600">
+            For your privacy, your date of birth was not saved. Enter it again to continue. It will
+            be checked by the server when you submit.
+          </p>
+          <div className="mt-5 max-w-md">
+            <TextField
+              id="resumeDateOfBirth"
+              label="Date of birth"
+              type="date"
+              required
+              value={resumeDob}
+              onChange={setResumeDob}
+              error={resumeDobError}
+            />
+          </div>
+          <button
+            type="button"
+            className={`${primaryButton} mt-6`}
+            onClick={() => {
+              if (!validDate(resumeDob) || resumeDob > localToday()) {
+                setResumeDobError("Enter a valid date of birth that is not in the future.");
+                return;
+              }
+              draftDirty.current = true;
+              draftRevision.current += 1;
+              dispatch({ type: "update-field", field: "dateOfBirth", value: resumeDob });
+              setResumeDobError("");
+              setRequiresDobReentry(false);
+            }}
+          >
+            Continue to saved step
+          </button>
+        </div>
+      </section>
     );
   }
 
@@ -351,9 +745,40 @@ export function MembershipApplicationForm({ verifiedEmail }: { readonly verified
           <p className="text-sm font-semibold tracking-wide text-neutral-700">CYON CONNECT</p>
           <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Membership application</h1>
           <p className="mt-2 max-w-2xl text-sm text-neutral-600">
-            Complete each section, then review your information. This form currently keeps entries
-            only in this page session; it does not submit or save an application.
+            Complete each section, review your information, then submit it securely for parish
+            review.
           </p>
+          {draftPersistenceEnabled && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void saveProgress()}
+                disabled={submitting || saveState === "saving"}
+                className={secondaryButton}
+              >
+                Save Progress
+              </button>
+              <p role="status" aria-live="polite" className="text-sm text-neutral-700">
+                {saveState === "saving"
+                  ? "Saving..."
+                  : saveState === "saved"
+                    ? "Saved"
+                    : saveState === "error"
+                      ? "Unable to save — retry"
+                      : "Progress saves automatically as you work."}
+              </p>
+              {saveMessage && <p className="w-full text-sm text-neutral-600">{saveMessage}</p>}
+              {saveState === "error" && (
+                <button
+                  type="button"
+                  onClick={() => void saveProgress()}
+                  className="text-sm font-medium underline"
+                >
+                  Retry save
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -379,7 +804,7 @@ export function MembershipApplicationForm({ verifiedEmail }: { readonly verified
         </ol>
       </div>
 
-      <form onSubmit={finishReview} noValidate>
+      <form onSubmit={preventImplicitSubmission} noValidate>
         <fieldset className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm sm:p-8">
           <legend className="sr-only">{step}</legend>
           <h2 className="text-xl font-semibold">{step}</h2>
@@ -426,10 +851,27 @@ export function MembershipApplicationForm({ verifiedEmail }: { readonly verified
             <Emergency draft={draft} update={update} errors={fieldErrors} />
           )}
           {step === "School" && <School draft={draft} update={update} />}
-          {step === "Review" && <MembershipApplicationReview draft={draft} email={verifiedEmail} />}
+          {step === "Review" && (
+            <>
+              <PassportPhotoControl
+                draftId={draftId.current}
+                photoId={passportPhotoId}
+                busy={photoBusy}
+                error={photoError}
+                onUpload={uploadPassportPhoto}
+                onRemove={removePassportPhoto}
+              />
+              <MembershipApplicationReview draft={draft} email={verifiedEmail} />
+            </>
+          )}
           {notice && (
             <p role="status" className="mt-5 rounded-md bg-blue-50 p-3 text-sm text-blue-900">
               {notice}
+            </p>
+          )}
+          {submissionError && (
+            <p role="alert" className="mt-5 rounded-md bg-red-50 p-3 text-sm text-red-900">
+              {submissionError}
             </p>
           )}
           {Object.keys(fieldErrors).length > 0 && (
@@ -441,10 +883,13 @@ export function MembershipApplicationForm({ verifiedEmail }: { readonly verified
             <button
               type="button"
               onClick={() => {
+                draftDirty.current = true;
+                draftRevision.current += 1;
                 setNotice("");
+                setSubmissionError("");
                 dispatch({ type: "set-step", stepIndex: stepIndex - 1 });
               }}
-              disabled={stepIndex === 0}
+              disabled={stepIndex === 0 || submitting}
               className={secondaryButton}
             >
               Back
@@ -454,17 +899,28 @@ export function MembershipApplicationForm({ verifiedEmail }: { readonly verified
                 Continue
               </button>
             ) : (
-              <button type="submit" className={primaryButton}>
-                {reviewed ? "Review again" : "Review information"}
+              <button
+                type="button"
+                onClick={() => void submitApplication()}
+                disabled={submitting || !submissionEnabled || !passportPhotoId || photoBusy}
+                className={primaryButton}
+              >
+                {submitting ? "Submitting application…" : "Submit application"}
               </button>
             )}
           </div>
         </fieldset>
       </form>
+      {!submissionEnabled && (
+        <p role="status" className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-950">
+          Application submission is not available until the development database and parish
+          configuration are verified.
+        </p>
+      )}
       <p className="mt-4 text-xs text-neutral-500">
         Your verified email is displayed from your signed-in Auth identity. Parish intake is set by
-        CYON Connect, not by this form. No membership record, account, or application is created
-        here.
+        CYON Connect, not by this form. Submission creates an application only; it does not create a
+        member record, user account, or membership approval.
       </p>
     </section>
   );
@@ -1035,6 +1491,102 @@ function School({ draft, update }: SectionProps) {
         hint="No educational certificates are requested."
       />
     </div>
+  );
+}
+
+function PassportPhotoControl({
+  draftId,
+  photoId,
+  busy,
+  error,
+  onUpload,
+  onRemove,
+}: {
+  readonly draftId: string | null;
+  readonly photoId: string | null;
+  readonly busy: boolean;
+  readonly error: string;
+  readonly onUpload: (file: File) => void;
+  readonly onRemove: () => void;
+}) {
+  return (
+    <section
+      className="mb-6 rounded-lg border border-neutral-200 p-4"
+      aria-labelledby="passport-photo-title"
+    >
+      <h3 id="passport-photo-title" className="font-semibold">
+        Passport photograph <Required />
+      </h3>
+      <p className="mt-1 text-sm text-neutral-600">
+        Required before final submission. You may save a draft without a photograph. Accepted files:
+        JPEG, PNG or WebP, at least 300 × 300 pixels and up to 5 MiB.
+      </p>
+      {photoId && draftId ? (
+        <div className="mt-4 flex flex-wrap items-end gap-4">
+          {/* The image endpoint is authenticated and private; Next's optimizer cannot forward the applicant session. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/api/membership-applications/photo?draftId=${encodeURIComponent(draftId)}`}
+            alt="Passport photograph preview"
+            className="h-40 w-32 rounded border border-neutral-300 object-cover"
+          />
+          <div className="flex flex-wrap gap-3">
+            <label className={`${secondaryButton} cursor-pointer`}>
+              {busy ? "Saving…" : "Replace photograph"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                disabled={busy}
+                aria-label="Replace passport photograph"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  if (file) onUpload(file);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+            <button type="button" className={secondaryButton} disabled={busy} onClick={onRemove}>
+              Remove photograph
+            </button>
+          </div>
+        </div>
+      ) : (
+        <label className="mt-4 block max-w-md text-sm font-medium">
+          Upload passport photograph <Required />
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={busy || !draftId}
+            aria-required="true"
+            className="mt-2 block w-full rounded-md border border-neutral-300 p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-100 file:px-3 file:py-2"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              if (file) onUpload(file);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+      )}
+      {!draftId && (
+        <p className="mt-2 text-xs text-neutral-600">
+          Save progress to prepare a secure draft upload.
+        </p>
+      )}
+      {busy && (
+        <p className="mt-3 text-sm" role="status">
+          Saving photograph…
+        </p>
+      )}
+      {error && (
+        <p className="mt-3 text-sm text-red-800" role="alert">
+          {error}
+        </p>
+      )}
+      <p className="mt-3 text-xs text-neutral-600" role="status">
+        {photoId ? "Photograph saved privately with this draft." : "No photograph uploaded yet."}
+      </p>
+    </section>
   );
 }
 

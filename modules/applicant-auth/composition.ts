@@ -6,28 +6,37 @@ import {
   recoveryRequestSchema,
   registrationSchema,
 } from "./domain/credentials";
+import { getServerEnv } from "@/infrastructure/config/server";
+import { createApplicantAuthIdentity } from "./infrastructure/supabase-applicant-identity-creator";
 import { createServerSupabaseClient } from "@/infrastructure/supabase/server";
 import { getAuthRedirectUrl } from "@/infrastructure/config/public";
+import {
+  evaluateApplicantEligibility,
+  evaluateMembershipSubmissionEligibility,
+  getCurrentParishDate,
+} from "./infrastructure/applicant-eligibility";
 
 export function getVerifiedApplicant() {
   return verifyApplicantSession(createSupabaseApplicantSessionReader());
 }
 
+/** Server-only submission gate. DOB and calculated age are returned only as a coarse result. */
+export function assessMembershipSubmissionEligibility(dateOfBirth: string) {
+  return evaluateMembershipSubmissionEligibility(dateOfBirth, getCurrentParishDate());
+}
+
 export async function registerApplicant(input: unknown) {
   const parsed = registrationSchema.safeParse(input);
   if (!parsed.success) return "invalid" as const;
-  try {
-    const client = await createServerSupabaseClient();
-    const { error } = await client.auth.signUp({
-      email: parsed.data.email,
-      password: parsed.data.password,
-      options: { emailRedirectTo: getAuthRedirectUrl("/auth/callback", "confirmation") },
-    });
-    if (!error || error.code === "user_already_exists") return "accepted" as const;
-    return "unavailable" as const;
-  } catch {
+  const today = getCurrentParishDate();
+  const eligibility = evaluateApplicantEligibility(parsed.data.dateOfBirth, today);
+  if (eligibility === "invalid") return "invalid" as const;
+  if (eligibility === "ineligible") return "ineligible" as const;
+  const env = getServerEnv();
+  if (env.APP_ENV !== "development" || env.APPLICANT_REGISTRATION_ENABLED !== "true") {
     return "unavailable" as const;
   }
+  return createApplicantAuthIdentity({ email: parsed.data.email, password: parsed.data.password });
 }
 
 export async function requestApplicantRecovery(input: unknown) {
@@ -61,15 +70,28 @@ export async function updateApplicantPassword(input: unknown) {
 
 export async function consumeApplicantAuthCallback(input: {
   readonly code: string | null;
+  readonly tokenHash: string | null;
   readonly flow: string | null;
 }) {
   const recovery = input.flow === "recovery";
-  if (!input.code || input.code.length > 4096 || (input.flow !== "confirmation" && !recovery)) {
+  const isConfirmation = input.flow === "confirmation";
+  const hasCode = !!input.code && input.code.length <= 4096;
+  const hasConfirmationToken =
+    !!input.tokenHash && input.tokenHash.length <= 4096 && isConfirmation;
+  if (
+    (input.code && input.code.length > 4096) ||
+    (input.tokenHash && input.tokenHash.length > 4096) ||
+    (input.code && input.tokenHash) ||
+    (!hasCode && !hasConfirmationToken) ||
+    (!isConfirmation && !recovery)
+  ) {
     return { kind: "rejected" as const, recovery };
   }
   try {
     const client = await createServerSupabaseClient();
-    const { error: exchangeError } = await client.auth.exchangeCodeForSession(input.code);
+    const { error: exchangeError } = hasConfirmationToken
+      ? await client.auth.verifyOtp({ token_hash: input.tokenHash!, type: "email" })
+      : await client.auth.exchangeCodeForSession(input.code!);
     if (exchangeError) {
       await client.auth.signOut();
       return { kind: "rejected" as const, recovery };

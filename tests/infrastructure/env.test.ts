@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { parseEnv, publicEnvSchema } from "@/infrastructure/config/public-schema";
 import {
   assertDevelopmentSupabaseTarget,
@@ -21,6 +22,18 @@ describe("environment validation", () => {
     expect(() =>
       assertDevelopmentSupabaseTarget("https://other.supabase.co", "test"),
     ).not.toThrow();
+    expect(() =>
+      assertDevelopmentSupabaseTarget("http://127.0.0.1:54321", "development"),
+    ).not.toThrow();
+    expect(() =>
+      assertDevelopmentSupabaseTarget("http://localhost:54321", "development"),
+    ).not.toThrow();
+    expect(() =>
+      assertDevelopmentSupabaseTarget("http://127.0.0.1:54322", "development"),
+    ).toThrow();
+    expect(() =>
+      assertDevelopmentSupabaseTarget("http://localhost.evil.test:54321", "development"),
+    ).toThrow();
   });
 
   it("constructs only fixed internal app destinations from trusted configuration", () => {
@@ -59,7 +72,31 @@ describe("environment validation", () => {
 
   it("APP_ENV defaults to development and rejects unknown values", () => {
     expect(parseEnv(serverEnvSchema, {}).APP_ENV).toBe("development");
+    expect(parseEnv(serverEnvSchema, {}).APPLICANT_REGISTRATION_ENABLED).toBe("false");
+    expect(parseEnv(serverEnvSchema, {}).MEMBERSHIP_APPLICATION_SUBMISSION_ENABLED).toBe("false");
+    expect(
+      parseEnv(serverEnvSchema, { APPLICANT_REGISTRATION_ENABLED: "true" })
+        .APPLICANT_REGISTRATION_ENABLED,
+    ).toBe("true");
+    expect(
+      parseEnv(serverEnvSchema, { MEMBERSHIP_APPLICATION_SUBMISSION_ENABLED: "true" })
+        .MEMBERSHIP_APPLICATION_SUBMISSION_ENABLED,
+    ).toBe("true");
+    expect(() => parseEnv(serverEnvSchema, { APPLICANT_REGISTRATION_ENABLED: "yes" })).toThrow(
+      /APPLICANT_REGISTRATION_ENABLED/,
+    );
     expect(() => parseEnv(serverEnvSchema, { APP_ENV: "prod" })).toThrow(/APP_ENV/);
+  });
+
+  it("disables public signup in the local Supabase configuration", () => {
+    const config = readFileSync("supabase/config.toml", "utf8");
+    expect(config).toMatch(/\[auth\][\s\S]*?enable_signup\s*=\s*false/);
+    expect(config).toMatch(/\[auth\.email\][\s\S]*?enable_signup\s*=\s*true/);
+    expect(config).toMatch(/\[auth\.email\][\s\S]*?enable_confirmations\s*=\s*true/);
+    expect(config).toContain("[auth.email.template.confirmation]");
+    expect(readFileSync("supabase/templates/applicant-confirmation.html", "utf8")).toContain(
+      "token_hash={{ .TokenHash }}",
+    );
   });
 
   it("accepts only a UUID for the optional server-side operational parish setting", () => {

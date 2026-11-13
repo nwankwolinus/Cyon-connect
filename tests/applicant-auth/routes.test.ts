@@ -6,9 +6,10 @@ import { GET as callback } from "@/app/auth/callback/route";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
-  signUp: vi.fn(),
+  createApplicantAuthIdentity: vi.fn(),
   resetPasswordForEmail: vi.fn(),
   exchangeCodeForSession: vi.fn(),
+  verifyOtp: vi.fn(),
   getUser: vi.fn(),
   updateUser: vi.fn(),
   signOut: vi.fn(),
@@ -17,11 +18,14 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/infrastructure/supabase/server", () => ({
   createServerSupabaseClient: mocks.createClient,
 }));
+vi.mock("@/modules/applicant-auth/infrastructure/supabase-applicant-identity-creator", () => ({
+  createApplicantAuthIdentity: mocks.createApplicantAuthIdentity,
+}));
 const client = {
   auth: {
-    signUp: mocks.signUp,
     resetPasswordForEmail: mocks.resetPasswordForEmail,
     exchangeCodeForSession: mocks.exchangeCodeForSession,
+    verifyOtp: mocks.verifyOtp,
     getUser: mocks.getUser,
     updateUser: mocks.updateUser,
     signOut: mocks.signOut,
@@ -40,10 +44,13 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://crfcglxcsnmeovnipnko.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-publishable-key";
+  process.env.APP_ENV = "development";
+  process.env.APPLICANT_REGISTRATION_ENABLED = "true";
   mocks.createClient.mockResolvedValue(client);
-  mocks.signUp.mockResolvedValue({ error: null });
+  mocks.createApplicantAuthIdentity.mockResolvedValue("accepted");
   mocks.resetPasswordForEmail.mockResolvedValue({ error: null });
   mocks.exchangeCodeForSession.mockResolvedValue({ error: null });
+  mocks.verifyOtp.mockResolvedValue({ error: null });
   mocks.getUser.mockResolvedValue({
     data: {
       user: {
@@ -67,45 +74,86 @@ describe("prospective applicant registration", () => {
     const crossOrigin = new Request("http://localhost:3000/api", {
       method: "POST",
       headers: { "content-type": "application/json", origin: "https://attacker.test" },
-      body: JSON.stringify({ email: "applicant@example.test", password: "password-123" }),
+      body: JSON.stringify({
+        email: "applicant@example.test",
+        password: "password-123",
+        dateOfBirth: "2000-01-01",
+      }),
     });
     const missingOrigin = new Request("http://localhost:3000/api", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "applicant@example.test", password: "password-123" }),
+      body: JSON.stringify({
+        email: "applicant@example.test",
+        password: "password-123",
+        dateOfBirth: "2000-01-01",
+      }),
     });
     expect((await register(crossOrigin)).status).toBe(403);
     expect((await register(missingOrigin)).status).toBe(403);
-    expect(mocks.signUp).not.toHaveBeenCalled();
+    expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
   });
 
   it("validates input and creates only an Auth identity", async () => {
-    const invalid = await register(post({ email: "bad", password: "short" }));
+    const invalid = await register(
+      post({ email: "bad", password: "short", dateOfBirth: "2000-01-01" }),
+    );
     expect(invalid.status).toBe(400);
-    expect(mocks.signUp).not.toHaveBeenCalled();
+    expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
 
     const response = await register(
-      post({ email: "Applicant@example.test ", password: "password-123" }),
+      post({
+        email: "Applicant@example.test ",
+        password: "password-123",
+        dateOfBirth: "2000-01-01",
+      }),
     );
     expect(response.status).toBe(202);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual({
       message: "If registration can proceed, confirmation instructions will be sent.",
     });
-    expect(mocks.signUp).toHaveBeenCalledWith({
+    expect(mocks.createApplicantAuthIdentity).toHaveBeenCalledWith({
       email: "Applicant@example.test",
       password: "password-123",
-      options: { emailRedirectTo: "http://localhost:3000/auth/callback?flow=confirmation" },
     });
-    expect(JSON.stringify(mocks.signUp.mock.calls)).not.toMatch(
+    expect(JSON.stringify(mocks.createApplicantAuthIdentity.mock.calls)).not.toMatch(
       /members|user_accounts|PLATFORM_ADMIN/i,
+    );
+    expect(JSON.stringify(mocks.createApplicantAuthIdentity.mock.calls)).not.toContain(
+      "dateOfBirth",
     );
   });
 
+  it("keeps the registration endpoint closed unless development is explicitly enabled", async () => {
+    process.env.APPLICANT_REGISTRATION_ENABLED = "false";
+    const disabled = await register(
+      post({
+        email: "applicant@example.test",
+        password: "password-123",
+        dateOfBirth: "2000-01-01",
+      }),
+    );
+    expect(disabled.status).toBe(503);
+    expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
+
+    process.env.APPLICANT_REGISTRATION_ENABLED = "true";
+    process.env.APP_ENV = "production";
+    const production = await register(
+      post({
+        email: "applicant@example.test",
+        password: "password-123",
+        dateOfBirth: "2000-01-01",
+      }),
+    );
+    expect(production.status).toBe(503);
+    expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
+  });
+
   it("normalizes duplicate-email errors to the same generic success response", async () => {
-    mocks.signUp.mockResolvedValue({ error: { code: "user_already_exists" } });
+    mocks.createApplicantAuthIdentity.mockResolvedValue("accepted");
     const response = await register(
-      post({ email: "known@example.test", password: "password-123" }),
+      post({ email: "known@example.test", password: "password-123", dateOfBirth: "2000-01-01" }),
     );
     expect(response.status).toBe(202);
     expect(await response.json()).toEqual({
@@ -114,16 +162,59 @@ describe("prospective applicant registration", () => {
   });
 
   it("returns a generic operational failure without provider details", async () => {
-    mocks.signUp.mockRejectedValue(new Error("private provider detail"));
+    mocks.createApplicantAuthIdentity.mockResolvedValue("unavailable");
     const response = await register(
-      post({ email: "applicant@example.test", password: "password-123" }),
+      post({
+        email: "applicant@example.test",
+        password: "password-123",
+        dateOfBirth: "2000-01-01",
+      }),
     );
     expect(response.status).toBe(503);
     expect(await response.text()).not.toContain("private provider detail");
   });
+
+  it("rejects ineligible ages before Supabase Auth and never forwards DOB to Auth", async () => {
+    const tooYoung = await register(
+      post({
+        email: "applicant@example.test",
+        password: "password-123",
+        dateOfBirth: "2011-11-09",
+      }),
+    );
+    expect(tooYoung.status).toBe(403);
+    expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
+
+    const futureBirthday = await register(
+      post({
+        email: "applicant@example.test",
+        password: "password-123",
+        dateOfBirth: "2027-01-01",
+      }),
+    );
+    expect(futureBirthday.status).toBe(400);
+    expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
+  });
 });
 
 describe("confirmation and recovery callback", () => {
+  it("verifies a server-side confirmation token hash and establishes the verified identity", async () => {
+    const response = await callback(
+      new Request(
+        "http://localhost:3000/auth/callback?token_hash=one-time-email-token&flow=confirmation",
+      ),
+    );
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/applicant/sign-in?status=confirmed",
+    );
+    expect(mocks.verifyOtp).toHaveBeenCalledWith({
+      token_hash: "one-time-email-token",
+      type: "email",
+    });
+    expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+
   it("exchanges a confirmation code and redirects to a fixed internal destination", async () => {
     const response = await callback(
       new Request(
@@ -194,6 +285,26 @@ describe("confirmation and recovery callback", () => {
       "http://localhost:3000/applicant/sign-in?status=confirmation-failed",
     );
     expect(mocks.exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  it("does not accept confirmation token hashes for recovery or ambiguous callbacks", async () => {
+    const recovery = await callback(
+      new Request(
+        "http://localhost:3000/auth/callback?token_hash=one-time-email-token&flow=recovery",
+      ),
+    );
+    const ambiguous = await callback(
+      new Request(
+        "http://localhost:3000/auth/callback?code=code&token_hash=token&flow=confirmation",
+      ),
+    );
+    expect(recovery.headers.get("location")).toBe(
+      "http://localhost:3000/auth/reset-password?status=recovery-failed",
+    );
+    expect(ambiguous.headers.get("location")).toBe(
+      "http://localhost:3000/applicant/sign-in?status=confirmation-failed",
+    );
+    expect(mocks.verifyOtp).not.toHaveBeenCalled();
   });
 });
 

@@ -15,15 +15,18 @@ type FormProps = { readonly status?: string };
 export function ApplicantRegistrationForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    const parsed = registrationSchema.safeParse({ email, password });
+    const parsed = registrationSchema.safeParse({ email, password, dateOfBirth });
     if (!parsed.success) {
-      setMessage("Enter a valid email and a password of at least 8 characters.");
+      setMessage(
+        "Enter a valid email, a password of at least 8 characters, and your date of birth.",
+      );
       return;
     }
     setBusy(true);
@@ -36,7 +39,10 @@ export function ApplicantRegistrationForm() {
       });
       const body = (await response.json()) as { message?: string };
       setMessage(body.message ?? "Registration could not be completed. Please try again later.");
-      if (response.status === 202) setPassword("");
+      if (response.status === 202) {
+        setPassword("");
+        setDateOfBirth("");
+      }
     } catch {
       setMessage("Registration could not be completed. Please try again later.");
     } finally {
@@ -45,21 +51,43 @@ export function ApplicantRegistrationForm() {
   }
 
   return (
-    <form onSubmit={submit} className="mt-6 space-y-4">
+    <form onSubmit={submit} className="space-y-5">
       <EmailField value={email} onChange={setEmail} />
       <PasswordField value={password} onChange={setPassword} label="Create password" />
+      <div>
+        <label
+          className="block text-sm font-medium text-neutral-800"
+          htmlFor="registration-date-of-birth"
+        >
+          Date of birth <span className="text-neutral-500">(required)</span>
+        </label>
+        <input
+          id="registration-date-of-birth"
+          name="dateOfBirth"
+          type="date"
+          required
+          autoComplete="bday"
+          value={dateOfBirth}
+          onChange={(event) => setDateOfBirth(event.target.value)}
+          className={inputClass}
+          aria-describedby="registration-date-of-birth-note"
+        />
+        <p id="registration-date-of-birth-note" className="mt-2 text-xs leading-5 text-neutral-600">
+          Used by the server to check the approved registration age range (16–40 years). It is not
+          sent to Supabase Auth.
+        </p>
+      </div>
       {message ? (
-        <p role="status" className="text-sm text-neutral-700">
+        <p
+          role="status"
+          className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm leading-5 text-neutral-700"
+        >
           {message}
         </p>
       ) : null}
       <button type="submit" disabled={busy} className={buttonClass}>
         {busy ? "Submitting..." : "Create applicant sign-in"}
       </button>
-      <p className="text-xs text-neutral-500">
-        Registration creates an Auth identity only. It does not create a membership or account
-        record.
-      </p>
     </form>
   );
 }
@@ -225,7 +253,7 @@ export function PasswordUpdateForm() {
 function EmailField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <div>
-      <label htmlFor="email" className="mb-1 block text-sm font-medium">
+      <label htmlFor="email" className="block text-sm font-medium text-neutral-800">
         Email
       </label>
       <input
@@ -256,7 +284,7 @@ function PasswordField({
 }) {
   return (
     <div>
-      <label htmlFor="password" className="mb-1 block text-sm font-medium">
+      <label htmlFor="password" className="block text-sm font-medium text-neutral-800">
         {label}
       </label>
       <input
@@ -289,6 +317,6 @@ function statusMessage(status?: string): string {
 }
 
 const inputClass =
-  "w-full rounded-md border border-neutral-300 px-3 py-2 outline-none focus:border-neutral-700 focus:ring-2 focus:ring-neutral-200";
+  "mt-1 block h-11 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition placeholder:text-neutral-400 focus:border-neutral-700 focus:ring-4 focus:ring-neutral-200/70";
 const buttonClass =
-  "w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:cursor-wait disabled:opacity-60";
+  "w-full rounded-md bg-neutral-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 disabled:cursor-wait disabled:opacity-60";

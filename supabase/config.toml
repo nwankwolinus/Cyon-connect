@@ -46,9 +46,15 @@ additional_redirect_urls = [
   "http://127.0.0.1:3000/auth/reset-password",
 ]
 jwt_expiry = 3600
-enable_signup = true
+enable_signup = false
 
 [auth.email]
+# Keep the email provider enabled for sign-in and confirmation. The global
+# [auth] enable_signup=false setting blocks public identity creation.
 enable_signup = true
 # Confirmation is required locally; Supabase auto-confirm must remain disabled.
 enable_confirmations = true
+
+[auth.email.template.confirmation]
+subject = "Confirm your CYON Connect email address"
+content_path = "./supabase/templates/applicant-confirmation.html"

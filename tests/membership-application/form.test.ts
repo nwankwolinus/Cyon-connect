@@ -8,6 +8,7 @@ import {
   createInitialMembershipApplicationDraft,
   createInitialMembershipApplicationFormState,
   membershipApplicationFormReducer,
+  restoreMembershipApplicationFormState,
   MembershipApplicationForm,
   MembershipApplicationReview,
   MembershipApplicationSocieties,
@@ -286,6 +287,31 @@ describe("membership application form", () => {
     expect(state.draft.firstName).toBe("Ada");
   });
 
+  it("restores saved answers and step while requiring DOB to be entered again", () => {
+    const state = restoreMembershipApplicationFormState(
+      { firstName: "Ada", residential: { city: "Lagos" } },
+      5,
+    );
+    expect(state.stepIndex).toBe(5);
+    expect(state.draft.firstName).toBe("Ada");
+    expect(state.draft.residential.city).toBe("Lagos");
+    expect(state.draft.dateOfBirth).toBe("");
+  });
+
+  it("excludes DOB from saved payload and uses only in-memory browser state", () => {
+    const source = readFileSync(
+      resolve(
+        process.cwd(),
+        "modules/membership-application/presentation/membership-application-form.tsx",
+      ),
+      "utf8",
+    );
+    expect(source).toContain("function draftPayloadWithoutDob");
+    expect(source).toContain('key !== "dateOfBirth"');
+    expect(source).toContain('fetch("/api/membership-applications/draft"');
+    expect(source).not.toMatch(/localStorage|sessionStorage/);
+  });
+
   it("marks only local review as complete and displays the entered information for correction", () => {
     const initial = createInitialMembershipApplicationFormState();
     const draft = { ...validDraft(), firstName: "Ada" };
@@ -306,13 +332,14 @@ describe("membership application form", () => {
     expect(markup).toContain("Not applicable");
   });
 
-  it("offers a review step but does not submit or persist form values", () => {
+  it("offers a real submit action from the review step without browser storage or identity fields", () => {
     const markup = renderToStaticMarkup(
-      createElement(MembershipApplicationForm, { verifiedEmail: "applicant@example.test" }),
+      createElement(MembershipApplicationForm, {
+        verifiedEmail: "applicant@example.test",
+        initialStep: 9,
+      }),
     );
     expect(markup).toContain("Review");
-    expect(markup).toContain("does not submit or save an application");
-    expect(markup).not.toMatch(/<form[^>]+action=/);
     const source = readFileSync(
       resolve(
         process.cwd(),
@@ -320,8 +347,44 @@ describe("membership application form", () => {
       ),
       "utf8",
     );
-    expect(source).not.toMatch(
-      /\bfetch\s*\(|localStorage|sessionStorage|createServerSupabaseClient|console\.|logger|window\.location/,
+    expect(source).toContain("Submit application");
+    expect(source).toContain('fetch("/api/membership-applications/submit"');
+    expect(source).toContain("onSubmit={preventImplicitSubmission}");
+    expect(source).not.toContain("onSubmit={finishReview}");
+    expect(source).toContain("onClick={() => void submitApplication()}");
+    expect(source).toContain("stepIndex !== steps.length - 1");
+    expect(source).toContain("submissionInFlight.current");
+    expect(source).toContain(
+      "disabled={submitting || !submissionEnabled || !passportPhotoId || photoBusy}",
     );
+    expect(source).toContain(
+      "Upload a valid passport photograph before submitting your application.",
+    );
+    expect(markup).toContain("Passport photograph");
+    expect(markup).toContain("Required before final submission");
+    expect(markup).toContain("Save progress to prepare a secure draft upload.");
+    expect(source).toContain("useEffect(() =>");
+    expect(source).toContain('fetch("/api/membership-applications/draft"');
+    expect(source).toContain("function draftPayloadWithoutDob");
+    expect(source).toContain('key !== "dateOfBirth"');
+    expect(source).not.toMatch(
+      /localStorage|sessionStorage|createServerSupabaseClient|console\.|logger|window\.location/,
+    );
+  });
+
+  it("keeps navigation controls non-submitting and the review action explicit", () => {
+    const source = readFileSync(
+      resolve(
+        process.cwd(),
+        "modules/membership-application/presentation/membership-application-form.tsx",
+      ),
+      "utf8",
+    );
+    expect(source).toContain("<form onSubmit={preventImplicitSubmission} noValidate>");
+    expect(source).toContain('<button type="button" onClick={next} className={primaryButton}>');
+    expect(source).toMatch(
+      /<button\s+type="button"\s+onClick=\{\(\) => void submitApplication\(\)\}/,
+    );
+    expect(source).not.toContain('type="submit"');
   });
 });

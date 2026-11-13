@@ -5,7 +5,11 @@ import { privilegedEnvSchema, serverEnvSchema } from "./schema";
 export function getServerEnv() {
   return parseEnv(serverEnvSchema, {
     APP_ENV: process.env.APP_ENV,
+    APPLICANT_REGISTRATION_ENABLED: process.env.APPLICANT_REGISTRATION_ENABLED,
+    MEMBERSHIP_APPLICATION_SUBMISSION_ENABLED:
+      process.env.MEMBERSHIP_APPLICATION_SUBMISSION_ENABLED,
     CYON_ACTIVE_PARISH_ID: process.env.CYON_ACTIVE_PARISH_ID,
+    MEMBERSHIP_PHOTO_CLEANUP_HMAC_SECRET: process.env.MEMBERSHIP_PHOTO_CLEANUP_HMAC_SECRET,
   });
 }
 

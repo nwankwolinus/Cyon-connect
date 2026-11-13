@@ -29,11 +29,13 @@ export async function as<T>(
 ) {
   await db.exec(`set role ${role}`);
   await db.query("select set_config('request.jwt.claim.sub', $1, false)", [sub ?? ""]);
+  await db.query("select set_config('request.jwt.claim.role', $1, false)", [role]);
   try {
     return await fn();
   } finally {
     await db.exec("reset role");
     await db.query("select set_config('request.jwt.claim.sub', '', false)");
+    await db.query("select set_config('request.jwt.claim.role', '', false)");
   }
 }
 

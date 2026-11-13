@@ -17,12 +17,24 @@ export async function POST(request: Request): Promise<Response> {
   try {
     input = await request.json();
   } catch {
-    return NextResponse.json({ message: "Enter a valid email and password." }, { status: 400 });
+    return NextResponse.json(
+      { message: "Enter a valid email, password, and date of birth." },
+      { status: 400, headers: noStore },
+    );
   }
 
   const result = await registerApplicant(input);
   if (result === "invalid") {
-    return NextResponse.json({ message: "Enter a valid email and password." }, { status: 400 });
+    return NextResponse.json(
+      { message: "Enter a valid email, password, and date of birth." },
+      { status: 400, headers: noStore },
+    );
+  }
+  if (result === "ineligible") {
+    return NextResponse.json(
+      { message: "Registration is unavailable based on the eligibility requirements." },
+      { status: 403, headers: noStore },
+    );
   }
   if (result === "accepted") {
     return NextResponse.json(GENERIC_ACCEPTED, { status: 202, headers: noStore });

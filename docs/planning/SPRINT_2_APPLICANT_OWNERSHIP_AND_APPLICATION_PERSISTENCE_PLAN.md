@@ -108,7 +108,7 @@ No matching source or algorithm is established. Do not claim screening is operat
 6. **Hosted security:** CAPTCHA/Attack Protection and effective abuse limits are not verified by the reported successful auth flow. Confirmation/recovery success does not test old-password rejection or all account-enumeration/abuse requirements.
 7. **Physical security boundary:** design and test grants/RLS/service-role paths and transaction behavior in a disposable/local test environment before relying on database controls.
 
-These are dependencies, not requests to reopen approved lifecycle decisions. Do not accept applicant PII or claim submission/screening is operational until the corresponding access, field, and persistence controls are implemented and verified.
+These are dependencies, not requests to reopen approved lifecycle decisions. Stage 2 form entries remain temporary browser memory. Do not submit or persist applicant PII on the server, expose it to reviewers, or claim submission/screening is operational until the corresponding access, field, and persistence controls are approved, implemented, and verified.
 
 ## 11. Acceptance criteria for the persistence milestone
 

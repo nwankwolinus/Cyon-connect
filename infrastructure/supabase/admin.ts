@@ -8,9 +8,10 @@ import { getPrivilegedEnv } from "@/infrastructure/config/server";
  * Every caller must perform its own application-level authorization first (FR-CC-008).
  * Only module infrastructure adapters may import this file (enforced by dependency-cruiser).
  */
-export function createAdminSupabaseClient() {
+export function createAdminSupabaseClient(fetchImplementation?: typeof fetch) {
   const { SUPABASE_SERVICE_ROLE_KEY } = getPrivilegedEnv();
   return createClient(getSupabaseUrl(), SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    ...(fetchImplementation ? { global: { fetch: fetchImplementation } } : {}),
   });
 }
