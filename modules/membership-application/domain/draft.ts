@@ -1,6 +1,23 @@
 import { z } from "zod";
 import { ARCHDIOCESAN_SOCIETY_OPTIONS } from "./society-options";
 
+export type ApplicantApplicationOverview = {
+  readonly application: null | {
+    readonly id: string;
+    readonly reference: string | null;
+    readonly status: string;
+    readonly submittedAt: string | null;
+    readonly createdAt: string;
+  };
+  readonly draft: null | {
+    readonly id: string;
+    readonly lastActivityAt: string;
+    readonly expiresAt: string;
+    readonly activeStep: number;
+  };
+  readonly expiredDraftDisposed: boolean;
+};
+
 const text = (max = 300) => z.string().max(max);
 const address = z
   .object({

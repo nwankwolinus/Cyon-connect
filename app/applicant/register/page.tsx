@@ -1,14 +1,19 @@
+import React from "react";
 import Link from "next/link";
 import { ApplicantRegistrationForm } from "@/modules/applicant-auth/presentation/auth-forms";
+import { ParishCyonBrand } from "@/components/branding/parish-cyon-brand";
 
 export default function ApplicantRegistrationPage() {
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 sm:py-10">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
-        <Brand />
-        <p className="max-w-48 text-right text-xs leading-5 text-neutral-600 sm:max-w-none sm:text-sm">
-          SS Joachim and Anne Parish, Ijegun
-        </p>
+        <ParishCyonBrand />
+        <Link
+          href="/applicant"
+          className="text-sm font-semibold text-emerald-900 underline underline-offset-4"
+        >
+          Membership information
+        </Link>
       </header>
 
       <div className="mx-auto flex w-full max-w-6xl justify-center py-8 sm:py-12">
@@ -56,22 +61,5 @@ export default function ApplicantRegistrationPage() {
         </section>
       </div>
     </main>
-  );
-}
-
-function Brand() {
-  return (
-    <div className="flex items-center gap-3">
-      <span
-        aria-hidden="true"
-        className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-900 text-xs font-bold tracking-wide text-white"
-      >
-        CYON
-      </span>
-      <div>
-        <p className="text-sm font-bold tracking-[0.12em] text-neutral-950">CYON CONNECT</p>
-        <p className="mt-0.5 text-xs text-neutral-500">Applicant portal</p>
-      </div>
-    </div>
   );
 }

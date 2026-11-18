@@ -14,7 +14,7 @@ export async function GET(request: Request): Promise<Response> {
   if (result.kind === "verified") {
     const destination = result.recovery
       ? getPasswordUpdateDestination()
-      : getTrustedAppDestination("/applicant/sign-in", "confirmed");
+      : getTrustedAppDestination("/applicant/registration-confirmed");
     return redirectWithoutCaching(destination);
   }
   return failed(result.recovery);

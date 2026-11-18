@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PUT } from "@/app/api/membership-applications/draft/route";
+import { membershipApplicationDraftPayloadSchema } from "@/modules/membership-application/domain/draft";
 
 const mocks = vi.hoisted(() => ({ getVerifiedApplicant: vi.fn(), saveDraft: vi.fn() }));
 vi.mock("@/modules/applicant-auth/composition", () => ({
@@ -23,15 +24,20 @@ beforeEach(() => {
     id: "verified-owner",
     email: "owner@example.test",
   });
-  mocks.saveDraft.mockResolvedValue({
-    kind: "saved",
-    result: {
-      draftId: "draft-id",
-      activeStep: 2,
-      updatedAt: "2026-11-12T10:00:00.000Z",
-      lastActivityAt: "2026-11-12T10:00:00.000Z",
-      expiresAt: "2026-12-12T10:00:00.000Z",
-    },
+  mocks.saveDraft.mockImplementation(async (input) => {
+    if (!membershipApplicationDraftPayloadSchema.safeParse(input.payload).success) {
+      return { kind: "invalid" };
+    }
+    return {
+      kind: "saved",
+      result: {
+        draftId: "draft-id",
+        activeStep: input.activeStep,
+        updatedAt: "2026-11-12T10:00:00.000Z",
+        lastActivityAt: "2026-11-12T10:00:00.000Z",
+        expiresAt: "2026-12-12T10:00:00.000Z",
+      },
+    };
   });
 });
 afterEach(() => vi.clearAllMocks());
@@ -81,7 +87,15 @@ describe("membership application draft route", () => {
         )
       ).status,
     ).toBe(403);
-    expect(mocks.saveDraft).not.toHaveBeenCalled();
+    expect(mocks.saveDraft).toHaveBeenCalledTimes(2);
+    expect(mocks.saveDraft.mock.calls.map(([input]) => input.applicantAuthId)).toEqual([
+      "verified-owner",
+      "verified-owner",
+    ]);
+    expect(mocks.saveDraft.mock.calls.map(([input]) => input.payload)).toEqual([
+      { applicantId: "forged" },
+      { nested: { dateOfBirth: "2000-01-01" } },
+    ]);
   });
 
   it("returns conflict rather than overwriting when an application is already open", async () => {

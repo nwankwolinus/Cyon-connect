@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { ParishCyonBrand } from "@/components/branding/parish-cyon-brand";
 
 const steps = [
   "Create an applicant account",
@@ -13,18 +14,12 @@ export default function HomePage() {
     <main className="min-h-screen overflow-hidden bg-[#f7f8f4] text-slate-900">
       <header className="relative z-10 border-b border-slate-200/80 bg-white/85">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
-          <Link href="/" aria-label="CYON Connect home" className="flex items-center gap-3">
-            <span className="grid size-11 place-items-center rounded-2xl bg-emerald-950 text-xs font-extrabold tracking-wide text-white shadow-sm">
-              CYON
-            </span>
-            <span>
-              <span className="block text-sm font-extrabold tracking-[0.14em] text-emerald-950">
-                CYON CONNECT
-              </span>
-              <span className="mt-0.5 block text-xs text-slate-500">
-                SS Joachim and Anne Parish, Ijegun
-              </span>
-            </span>
+          <Link
+            href="/"
+            aria-label="CYON Connect home"
+            className="rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-800"
+          >
+            <ParishCyonBrand />
           </Link>
           <nav aria-label="Applicant links" className="flex items-center gap-2 sm:gap-3">
             <Link

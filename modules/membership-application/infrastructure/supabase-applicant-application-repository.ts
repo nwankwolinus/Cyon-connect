@@ -1,7 +1,49 @@
 import "server-only";
 import { createAdminSupabaseClient } from "@/infrastructure/supabase/admin";
-import type { MembershipApplicationDraftPayload } from "../domain/draft";
+import type {
+  ApplicantApplicationOverview,
+  MembershipApplicationDraftPayload,
+} from "../domain/draft";
 import { createSupabasePassportPhotoRepository } from "./supabase-passport-photo-repository";
+import { createConsoleLogger } from "@/infrastructure/logging/console-logger";
+import { z } from "zod";
+
+const logger = createConsoleLogger({ module: "applicant-application-repository" });
+
+const applicationStatusSchema = z.enum([
+  "submitted",
+  "under_review",
+  "on_hold",
+  "approved",
+  "rejected",
+  "withdrawn",
+  "closed",
+]);
+const timestampSchema = z.string().datetime({ offset: true });
+const applicationOverviewSchema = z
+  .object({
+    id: z.string().uuid(),
+    reference: z.string().uuid().nullable(),
+    status: applicationStatusSchema,
+    submittedAt: timestampSchema.nullable(),
+    createdAt: timestampSchema,
+  })
+  .strict();
+const draftOverviewSchema = z
+  .object({
+    id: z.string().uuid(),
+    lastActivityAt: timestampSchema,
+    expiresAt: timestampSchema,
+    activeStep: z.number().int().min(0).max(9),
+  })
+  .strict();
+const applicantApplicationOverviewSchema: z.ZodType<ApplicantApplicationOverview> = z
+  .object({
+    application: applicationOverviewSchema.nullable(),
+    draft: draftOverviewSchema.nullable(),
+    expiredDraftDisposed: z.boolean(),
+  })
+  .strict();
 
 export type DraftSnapshot = {
   readonly draftId: string;
@@ -11,23 +53,6 @@ export type DraftSnapshot = {
   readonly lastActivityAt: string;
   readonly expiresAt: string;
   readonly updatedAt: string;
-};
-
-export type ApplicantApplicationOverview = {
-  readonly application: null | {
-    readonly id: string;
-    readonly reference: string | null;
-    readonly status: string;
-    readonly submittedAt: string | null;
-    readonly createdAt: string;
-  };
-  readonly draft: null | {
-    readonly id: string;
-    readonly lastActivityAt: string;
-    readonly expiresAt: string;
-    readonly activeStep: number;
-  };
-  readonly expiredDraftDisposed: boolean;
 };
 
 function errorCode(error: { code?: string; message?: string }) {
@@ -144,9 +169,25 @@ export function createSupabaseApplicantApplicationRepository() {
           p_correlation_id: input.correlationId,
         },
       );
+      if (error) {
+        const databaseErrorCode =
+          typeof error.code === "string" && /^[A-Z0-9]{5,8}$/.test(error.code)
+            ? error.code
+            : "unclassified";
+        logger.error("applicant application overview RPC failed", {
+          failureStage: "overview_rpc",
+          databaseErrorCode,
+        });
+      }
       if (error) errorCode(error);
-      if (!data || typeof data !== "object") throw new Error("application_unavailable");
-      return data as ApplicantApplicationOverview;
+      const parsedOverview = applicantApplicationOverviewSchema.safeParse(data);
+      if (!parsedOverview.success) {
+        logger.error("applicant application overview RPC returned an invalid result", {
+          failureStage: "overview_rpc_response",
+        });
+        throw new Error("application_unavailable");
+      }
+      return parsedOverview.data;
     },
   };
 }

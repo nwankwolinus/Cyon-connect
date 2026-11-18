@@ -14,6 +14,10 @@ import { membershipApplicationDraftPayloadSchema } from "./domain/draft";
 import { createSupabaseApplicantApplicationRepository } from "./infrastructure/supabase-applicant-application-repository";
 import { verifyApplicantPassportPhotoForSubmission } from "./composition-photo";
 import { z } from "zod";
+import { createConsoleLogger } from "@/infrastructure/logging/console-logger";
+import { describeError } from "@/shared/logging/logger";
+
+const applicantApplicationLogger = createConsoleLogger({ module: "applicant-application" });
 
 export type MembershipSubmissionOutcome =
   | { readonly kind: "submitted"; readonly result: SubmissionResult }
@@ -41,15 +45,36 @@ function submissionConfigIsEnabled(): boolean {
   }
 }
 
-/** Server-render gate. Confirms that the enabled dev config resolves its trusted parish. */
-export async function isMembershipApplicationSubmissionAvailable(): Promise<boolean> {
-  if (!submissionConfigIsEnabled()) return false;
+/** Read-only dashboard/status access is independent of whether intake is enabled. */
+export async function isMembershipApplicationOverviewAvailable(): Promise<boolean> {
+  let parishConfigured = false;
+  try {
+    parishConfigured = Boolean(getServerEnv().CYON_ACTIVE_PARISH_ID);
+  } catch {
+    // Fail closed when server configuration is malformed.
+  }
+  if (!parishConfigured) {
+    applicantApplicationLogger.warn("applicant application access is disabled by configuration", {
+      failureStage: "overview_configuration",
+    });
+    return false;
+  }
   try {
     await resolveOperationalParish();
     return true;
-  } catch {
+  } catch (error) {
+    applicantApplicationLogger.error("applicant application parish resolution failed", {
+      failureStage: "overview_parish_resolution",
+      ...describeError(error),
+    });
     return false;
   }
+}
+
+/** Submission/draft intake remains gated by the explicit development feature flag. */
+export async function isMembershipApplicationSubmissionAvailable(): Promise<boolean> {
+  if (!submissionConfigIsEnabled()) return false;
+  return isMembershipApplicationOverviewAvailable();
 }
 
 function canonicalize(value: unknown): string {
@@ -167,29 +192,20 @@ export async function saveMembershipApplicationDraft(input: {
 }
 
 export async function getMyMembershipApplicationOverview(applicantAuthId: string) {
-  if (!applicationAccessIsEnabled()) return null;
-  try {
-    const parish = await resolveOperationalParish();
-    return await createSupabaseApplicantApplicationRepository().getOverview({
-      applicantAuthId,
-      parishId: parish.id,
-      correlationId: randomUUID(),
-    });
-  } catch {
-    return null;
-  }
+  const parish = await resolveOperationalParish();
+  return createSupabaseApplicantApplicationRepository().getOverview({
+    applicantAuthId,
+    parishId: parish.id,
+    correlationId: randomUUID(),
+  });
 }
 
 export async function getMyMembershipApplicationDraft(applicantAuthId: string) {
   if (!applicationAccessIsEnabled()) return null;
-  try {
-    const parish = await resolveOperationalParish();
-    return await createSupabaseApplicantApplicationRepository().getDraft({
-      applicantAuthId,
-      parishId: parish.id,
-      correlationId: randomUUID(),
-    });
-  } catch {
-    return null;
-  }
+  const parish = await resolveOperationalParish();
+  return createSupabaseApplicantApplicationRepository().getDraft({
+    applicantAuthId,
+    parishId: parish.id,
+    correlationId: randomUUID(),
+  });
 }

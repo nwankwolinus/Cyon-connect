@@ -206,7 +206,7 @@ describe("confirmation and recovery callback", () => {
     );
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe(
-      "http://localhost:3000/applicant/sign-in?status=confirmed",
+      "http://localhost:3000/applicant/registration-confirmed",
     );
     expect(mocks.verifyOtp).toHaveBeenCalledWith({
       token_hash: "one-time-email-token",
@@ -223,7 +223,7 @@ describe("confirmation and recovery callback", () => {
     );
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe(
-      "http://localhost:3000/applicant/sign-in?status=confirmed",
+      "http://localhost:3000/applicant/registration-confirmed",
     );
     expect(mocks.exchangeCodeForSession).toHaveBeenCalledWith("one-time-code");
     expect(mocks.getUser).toHaveBeenCalledOnce();

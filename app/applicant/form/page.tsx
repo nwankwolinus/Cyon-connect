@@ -1,3 +1,4 @@
+import React from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTrustedAppDestination } from "@/infrastructure/config/public";
@@ -10,6 +11,7 @@ import {
 } from "@/modules/membership-application/composition";
 import { MembershipApplicationForm } from "@/modules/membership-application/presentation/membership-application-form";
 import { readApplicantPassportPhoto } from "@/modules/membership-application/composition-photo";
+import { ParishCyonBrand } from "@/components/branding/parish-cyon-brand";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +26,23 @@ export default async function ApplicantApplicationFormPage() {
     redirect(getTrustedAppDestination("/applicant/sign-in", "unavailable").toString());
 
   const available = await isMembershipApplicationSubmissionAvailable();
-  const overview = available ? await getMyMembershipApplicationOverview(applicant.id) : null;
+  let overview = null;
+  let savedDraft = null;
+  let applicationDataUnavailable = !available;
+  if (available) {
+    try {
+      overview = await getMyMembershipApplicationOverview(applicant.id);
+      if (!overview) applicationDataUnavailable = true;
+      else savedDraft = await getMyMembershipApplicationDraft(applicant.id);
+    } catch {
+      applicationDataUnavailable = true;
+    }
+  }
   const hasOpenApplication = ["submitted", "under_review", "on_hold", "approved"].includes(
     overview?.application?.status ?? "",
   );
   if (hasOpenApplication) redirect("/applicant");
 
-  const savedDraft = available ? await getMyMembershipApplicationDraft(applicant.id) : null;
   const expired = Boolean(
     overview?.expiredDraftDisposed || (savedDraft && "expired" in savedDraft && savedDraft.expired),
   );
@@ -55,8 +67,7 @@ export default async function ApplicantApplicationFormPage() {
     <main className="min-h-screen bg-neutral-50">
       <header className="flex items-center justify-between border-b border-neutral-200 bg-white px-6 py-4">
         <div>
-          <p className="text-sm font-semibold tracking-wide">CYON CONNECT</p>
-          <p className="text-xs text-neutral-500">SS Joachim and Anne Parish, Ijegun</p>
+          <ParishCyonBrand />
         </div>
         <div className="flex items-center gap-4">
           <Link href="/applicant" className="text-sm underline">
@@ -65,7 +76,7 @@ export default async function ApplicantApplicationFormPage() {
           <ApplicantSignOutButton />
         </div>
       </header>
-      {!available ? (
+      {applicationDataUnavailable ? (
         <section className="mx-auto max-w-3xl px-4 py-10" role="status">
           <p className="rounded-md bg-amber-50 p-4 text-sm text-amber-950">
             The application service is temporarily unavailable. Your form has not been submitted.

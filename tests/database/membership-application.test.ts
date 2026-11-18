@@ -63,6 +63,25 @@ describe("membership application foundation migration", () => {
     const ownerId = await seed.authUser(db);
     const parishId = await seed.parishId(db);
     await db.query("update auth.users set email_confirmed_at = now() where id = $1", [ownerId]);
+    const emptyOverview = await as(db, "service_role", null, () =>
+      db.query<{ result: Record<string, unknown> }>(
+        "select public.get_my_membership_application_overview($1,$2,$3) as result",
+        [ownerId, parishId, "72166bd6-ef2b-42b4-bbd6-04b02653fac5"],
+      ),
+    );
+    expect(emptyOverview.rows[0]?.result).toEqual({
+      application: null,
+      draft: null,
+      expiredDraftDisposed: false,
+    });
+    expect(
+      (
+        await db.query<{ count: number }>(
+          "select count(*)::int as count from public.user_accounts where auth_user_id=$1",
+          [ownerId],
+        )
+      ).rows[0]?.count,
+    ).toBe(0);
     const save = (payload: unknown, step: number, expected: string | null) =>
       db.query<{ result: Record<string, unknown> }>(
         "select public.save_membership_application_draft($1,$2,$3,$4,$5,$6) as result",

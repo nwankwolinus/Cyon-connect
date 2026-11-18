@@ -88,7 +88,7 @@ export function getAuthRedirectUrl(
 }
 
 export function getTrustedAppDestination(
-  path: "/applicant" | "/applicant/sign-in" | "/auth/callback" | "/auth/reset-password",
+  path: "/applicant" | "/applicant/sign-in" | "/auth/callback" | "/applicant/registration-confirmed" | "/auth/reset-password",
   status?: "confirmed" | "confirmation-failed" | "recovery-failed" | "unavailable",
 ): URL {
   const appUrl = parseEnv(publicEnvSchema.pick({ NEXT_PUBLIC_APP_URL: true }), {
