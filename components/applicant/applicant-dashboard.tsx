@@ -28,6 +28,8 @@ export function ApplicantDashboard({
   serviceUnavailable = false,
   submissionEnabled = false,
 }: ApplicantDashboardProps) {
+  const isNewApplicant = Boolean(overview && !overview.application && !overview.draft);
+
   return (
     <main className="min-h-screen bg-[#f7f8f4]">
       <header className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-8">
@@ -48,7 +50,7 @@ export function ApplicantDashboard({
           >
             My Application
           </h1>
-          {!serviceUnavailable && !submissionEnabled && (
+          {!serviceUnavailable && !submissionEnabled && !isNewApplicant && (
             <p
               className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700"
               role="status"
@@ -126,21 +128,39 @@ export function ApplicantDashboard({
               <h2 className="text-xl font-semibold text-emerald-950">
                 Welcome to your applicant portal
               </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">
-                Your email is verified. You can begin your membership application now. Your answers
-                are saved as a draft until you explicitly submit them.
-              </p>
               {overview.expiredDraftDisposed && (
                 <p className="mt-3 text-sm leading-6 text-slate-700" role="status">
                   A previous draft expired after 30 days without a successful save and its saved
                   answers were deleted. You can start again.
                 </p>
               )}
-              {submissionEnabled && (
-                <Link href="/applicant/form" className={primaryLinkClass}>
-                  Complete membership application
-                </Link>
-              )}
+              <div className="mt-5 rounded-xl border border-emerald-900/10 bg-white p-5">
+                <h3 className="text-lg font-semibold text-emerald-950">
+                  Start Membership Application
+                </h3>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">
+                  Complete your membership information for authorised parish review. Membership is
+                  granted only after the parish review and approval process.
+                </p>
+                {submissionEnabled ? (
+                  <Link href="/applicant/form" className={primaryLinkClass}>
+                    Start Membership Application
+                  </Link>
+                ) : (
+                  <button type="button" className={disabledButtonClass} disabled>
+                    Start Membership Application
+                  </button>
+                )}
+                {!submissionEnabled && (
+                  <p className="mt-3 text-sm leading-6 text-slate-600" role="status">
+                    Application intake is temporarily unavailable. Please check back later.
+                  </p>
+                )}
+                <p className="mt-3 text-xs leading-5 text-slate-600">
+                  When intake is available, you can save progress as a draft and return later. Your
+                  application is submitted only when you explicitly choose Submit Application.
+                </p>
+              </div>
             </div>
           ) : null}
 
@@ -203,3 +223,5 @@ const primaryLinkClass =
   "mt-5 inline-flex min-h-12 items-center justify-center rounded-xl bg-emerald-950 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-900";
 const secondaryLinkClass =
   "inline-flex min-h-11 items-center justify-center rounded-xl border border-emerald-900/20 px-4 py-2.5 text-sm font-semibold text-emerald-950 hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-900";
+const disabledButtonClass =
+  "mt-5 inline-flex min-h-12 cursor-not-allowed items-center justify-center rounded-xl bg-slate-300 px-5 py-3 text-sm font-bold text-slate-600";

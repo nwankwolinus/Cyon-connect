@@ -59,8 +59,10 @@ describe("applicant journey landing", () => {
   it("shows a welcome and start CTA for a verified applicant with no application", async () => {
     const markup = renderToStaticMarkup(await ApplicantPage());
     expect(markup).toContain("Welcome to your applicant portal");
-    expect(markup).toContain("Complete membership application");
+    expect(markup).toContain("Start Membership Application");
     expect(markup).toContain('href="/applicant/form"');
+    expect(markup).toContain("you can save progress as a draft and return later");
+    expect(markup).toContain("explicitly choose Submit Application");
     expect(markup).not.toContain("temporarily unavailable");
     expect(mocks.getMyMembershipApplicationOverview).toHaveBeenCalledWith("verified-applicant");
   });
@@ -71,9 +73,12 @@ describe("applicant journey landing", () => {
     const markup = renderToStaticMarkup(await ApplicantPage());
 
     expect(markup).toContain("Welcome to your applicant portal");
-    expect(markup).toContain("Membership application submission is temporarily unavailable");
-    expect(markup).not.toContain("Complete membership application");
+    expect(markup).toContain("Application intake is temporarily unavailable");
+    expect(markup).toMatch(
+      /<button type="button" class="[^"]*cursor-not-allowed[^"]*" disabled="">Start Membership Application<\/button>/,
+    );
     expect(markup).not.toContain('href="/applicant/form"');
+    expect(markup).not.toContain("You can begin your membership application now");
     expect(mocks.getMyMembershipApplicationOverview).toHaveBeenCalledWith("verified-applicant");
   });
 
