@@ -2,7 +2,7 @@ import "server-only";
 import sharp from "sharp";
 
 export const passportPhotoLimits = {
-  maxUploadBytes: 5 * 1024 * 1024,
+  maxUploadBytes: 4 * 1024 * 1024,
   minWidth: 300,
   minHeight: 300,
   maxWidth: 6000,

@@ -1519,7 +1519,7 @@ function PassportPhotoControl({
       </h3>
       <p className="mt-1 text-sm text-neutral-600">
         Required before final submission. You may save a draft without a photograph. Accepted files:
-        JPEG, PNG or WebP, at least 300 × 300 pixels and up to 5 MiB.
+        JPEG, PNG or WebP, at least 300 × 300 pixels and up to 4 MiB.
       </p>
       {photoId && draftId ? (
         <div className="mt-4 flex flex-wrap items-end gap-4">

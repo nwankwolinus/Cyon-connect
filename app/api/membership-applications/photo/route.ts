@@ -44,7 +44,7 @@ export async function PUT(request: Request): Promise<Response> {
   if ("response" in auth) return auth.response;
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > multipartBodyLimit) {
-    return json({ message: "Choose a supported image no larger than 5 MiB." }, 413);
+    return json({ message: "Choose a supported image no larger than 4 MiB." }, 413);
   }
   let form: FormData;
   try {
@@ -54,7 +54,7 @@ export async function PUT(request: Request): Promise<Response> {
     }).formData();
   } catch (error) {
     if (error instanceof Error && error.message === "photo_too_large") {
-      return json({ message: "Choose an image no larger than 5 MiB." }, 413);
+      return json({ message: "Choose an image no larger than 4 MiB." }, 413);
     }
     return json({ message: "Choose a valid passport photograph and try again." }, 400);
   }
@@ -64,7 +64,7 @@ export async function PUT(request: Request): Promise<Response> {
     return json({ message: "Save your draft and choose a passport photograph." }, 400);
   }
   if (file.size > passportPhotoLimits.maxUploadBytes) {
-    return json({ message: "Choose an image no larger than 5 MiB." }, 413);
+    return json({ message: "Choose an image no larger than 4 MiB." }, 413);
   }
   try {
     const result = await uploadApplicantPassportPhoto({
