@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hasTrustedAppOrigin } from "@/infrastructure/config/public";
+import { readBoundedRequestBody } from "@/infrastructure/http/read-bounded-request-body";
 import {
   assessMembershipSubmissionEligibility,
   getVerifiedApplicant,
@@ -31,23 +32,16 @@ export async function POST(request: Request): Promise<Response> {
   const idempotencyKey = idempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
   if (!idempotencyKey.success) return json({ message: "Please retry the submission." }, 400);
 
-  const declaredLength = Number(request.headers.get("content-length") ?? 0);
-  if (declaredLength > maxBodyBytes)
+  const body = await readBoundedRequestBody(request, maxBodyBytes);
+  if (body.kind === "too_large") {
     return json({ message: "Review the application and try again." }, 413);
-
-  let bodyText: string;
-  try {
-    bodyText = await request.text();
-  } catch {
+  }
+  if (body.kind === "invalid")
     return json({ message: "Review the application and try again." }, 400);
-  }
-  if (Buffer.byteLength(bodyText, "utf8") > maxBodyBytes) {
-    return json({ message: "Review the application and try again." }, 413);
-  }
 
   let raw: unknown;
   try {
-    raw = JSON.parse(bodyText);
+    raw = JSON.parse(body.text);
   } catch {
     return json({ message: "Review the application and try again." }, 400);
   }

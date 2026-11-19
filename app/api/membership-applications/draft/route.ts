@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hasTrustedAppOrigin } from "@/infrastructure/config/public";
+import { readBoundedRequestBody } from "@/infrastructure/http/read-bounded-request-body";
 import { getVerifiedApplicant } from "@/modules/applicant-auth/composition";
 import { saveMembershipApplicationDraft } from "@/modules/membership-application/composition";
 
@@ -26,14 +27,12 @@ export async function PUT(request: Request): Promise<Response> {
   }
   if (!applicant) return json({ message: "Sign in with a verified email to save progress." }, 401);
 
-  const declaredLength = Number(request.headers.get("content-length") ?? 0);
-  if (declaredLength > maxBodyBytes) return json({ message: "The draft could not be saved." }, 413);
+  const body = await readBoundedRequestBody(request, maxBodyBytes);
+  if (body.kind === "too_large") return json({ message: "The draft could not be saved." }, 413);
+  if (body.kind === "invalid") return json({ message: "The draft could not be saved." }, 400);
   let raw: unknown;
   try {
-    const text = await request.text();
-    if (Buffer.byteLength(text, "utf8") > maxBodyBytes)
-      return json({ message: "The draft could not be saved." }, 413);
-    raw = JSON.parse(text);
+    raw = JSON.parse(body.text);
   } catch {
     return json({ message: "The draft could not be saved." }, 400);
   }

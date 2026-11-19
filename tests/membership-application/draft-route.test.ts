@@ -18,6 +18,37 @@ function request(body: unknown, origin = "http://localhost:3000") {
   });
 }
 
+function streamedRequest(chunks: Uint8Array[], contentLength?: string) {
+  let index = 0;
+  let canceled = false;
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        if (index < chunks.length) controller.enqueue(chunks[index++]!);
+        else controller.close();
+      },
+      cancel() {
+        canceled = true;
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const headers: Record<string, string> = {
+    origin: "http://localhost:3000",
+    "content-type": "application/json",
+  };
+  if (contentLength !== undefined) headers["content-length"] = contentLength;
+  return {
+    request: new Request("http://localhost:3000/api/membership-applications/draft", {
+      method: "PUT",
+      headers,
+      body: stream,
+      duplex: "half",
+    } as RequestInit),
+    canceled: () => canceled,
+  };
+}
+
 beforeEach(() => {
   process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
   mocks.getVerifiedApplicant.mockResolvedValue({
@@ -102,5 +133,37 @@ describe("membership application draft route", () => {
     mocks.saveDraft.mockResolvedValueOnce({ kind: "application_open" });
     const response = await PUT(request({ payload: {}, activeStep: 0, expectedUpdatedAt: null }));
     expect(response.status).toBe(409);
+  });
+
+  it("rejects oversized streamed data with or without a reliable Content-Length", async () => {
+    const chunks = [new Uint8Array(48 * 1024), new Uint8Array(1)];
+    const missingLength = streamedRequest(chunks);
+    expect((await PUT(missingLength.request)).status).toBe(413);
+    expect(missingLength.canceled()).toBe(true);
+
+    const misleadingLength = streamedRequest(chunks, "1");
+    expect((await PUT(misleadingLength.request)).status).toBe(413);
+    expect(misleadingLength.canceled()).toBe(true);
+    expect(mocks.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it("returns a client error for malformed JSON and interrupted request streams", async () => {
+    const malformed = streamedRequest([new TextEncoder().encode("{")]);
+    expect((await PUT(malformed.request)).status).toBe(400);
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("{"));
+        controller.error(new Error("synthetic stream interruption"));
+      },
+    });
+    const interrupted = new Request("http://localhost:3000/api/membership-applications/draft", {
+      method: "PUT",
+      headers: { origin: "http://localhost:3000", "content-type": "application/json" },
+      body: stream,
+      duplex: "half",
+    } as RequestInit);
+    expect((await PUT(interrupted)).status).toBe(400);
+    expect(mocks.saveDraft).not.toHaveBeenCalled();
   });
 });
