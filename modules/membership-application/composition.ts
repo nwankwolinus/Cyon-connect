@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { getServerEnv } from "@/infrastructure/config/server";
+import { assertStagingSupabaseTarget, getSupabaseUrl } from "@/infrastructure/config/public";
 import { resolveOperationalParish } from "@/infrastructure/organization/operational-parish";
 import {
   membershipApplicationSubmissionSchema,
@@ -35,11 +36,13 @@ export function getMembershipPhotoCleanupSecret(): string | undefined {
 function submissionConfigIsEnabled(): boolean {
   try {
     const env = getServerEnv();
-    return (
-      env.APP_ENV === "development" &&
-      env.MEMBERSHIP_APPLICATION_SUBMISSION_ENABLED === "true" &&
-      Boolean(env.CYON_ACTIVE_PARISH_ID)
-    );
+    if (env.MEMBERSHIP_APPLICATION_SUBMISSION_ENABLED !== "true" || !env.CYON_ACTIVE_PARISH_ID) {
+      return false;
+    }
+    if (env.APP_ENV === "development") return process.env.NODE_ENV !== "production";
+    if (env.APP_ENV !== "staging") return false;
+    assertStagingSupabaseTarget(getSupabaseUrl());
+    return true;
   } catch {
     return false;
   }

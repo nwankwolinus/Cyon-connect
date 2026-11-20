@@ -7,11 +7,11 @@ export type AppEnvironment = (typeof APP_ENVIRONMENTS)[number];
 
 /** Server-only, non-secret configuration. */
 export const serverEnvSchema = z.object({
-  /** Explicit deployment identity. NODE_ENV is not enough: Vercel previews also run NODE_ENV=production. */
+  /** Explicit deployment identity. NODE_ENV is not enough: hosted staging also runs NODE_ENV=production. */
   APP_ENV: z.enum(APP_ENVIRONMENTS).default("development"),
-  /** Applicant identity creation is opt-in and limited to development until hosted gates are verified. */
+  /** Applicant identity creation is opt-in; enabled development/staging targets are environment-bound. */
   APPLICANT_REGISTRATION_ENABLED: z.enum(["true", "false"]).default("false"),
-  /** Membership submission stays disabled unless explicitly enabled in development. */
+  /** Membership intake is opt-in; enabled development/staging targets are environment-bound. */
   MEMBERSHIP_APPLICATION_SUBMISSION_ENABLED: z.enum(["true", "false"]).default("false"),
   /** Trusted server-only UUID for the sole operational CYON parish. */
   CYON_ACTIVE_PARISH_ID: z.string().uuid().optional(),

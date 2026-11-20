@@ -9,7 +9,11 @@ import {
 import { getServerEnv } from "@/infrastructure/config/server";
 import { createApplicantAuthIdentity } from "./infrastructure/supabase-applicant-identity-creator";
 import { createServerSupabaseClient } from "@/infrastructure/supabase/server";
-import { getAuthRedirectUrl } from "@/infrastructure/config/public";
+import {
+  assertStagingSupabaseTarget,
+  getAuthRedirectUrl,
+  getSupabaseUrl,
+} from "@/infrastructure/config/public";
 import {
   evaluateApplicantEligibility,
   evaluateMembershipSubmissionEligibility,
@@ -33,8 +37,17 @@ export async function registerApplicant(input: unknown) {
   if (eligibility === "invalid") return "invalid" as const;
   if (eligibility === "ineligible") return "ineligible" as const;
   const env = getServerEnv();
-  if (env.APP_ENV !== "development" || env.APPLICANT_REGISTRATION_ENABLED !== "true") {
+  const developmentRuntime = env.APP_ENV === "development" && process.env.NODE_ENV !== "production";
+  const stagingRuntime = env.APP_ENV === "staging";
+  if ((!developmentRuntime && !stagingRuntime) || env.APPLICANT_REGISTRATION_ENABLED !== "true") {
     return "unavailable" as const;
+  }
+  if (stagingRuntime) {
+    try {
+      assertStagingSupabaseTarget(getSupabaseUrl());
+    } catch {
+      return "unavailable" as const;
+    }
   }
   return createApplicantAuthIdentity({ email: parsed.data.email, password: parsed.data.password });
 }

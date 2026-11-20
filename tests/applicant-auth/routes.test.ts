@@ -41,6 +41,7 @@ function post(body: unknown): Request {
 }
 
 beforeEach(() => {
+  vi.stubEnv("NODE_ENV", "test");
   process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://crfcglxcsnmeovnipnko.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-publishable-key";
@@ -67,6 +68,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("prospective applicant registration", () => {
@@ -147,6 +149,49 @@ describe("prospective applicant registration", () => {
       }),
     );
     expect(production.status).toBe(503);
+    expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
+  });
+
+  it("allows staging registration only when explicitly enabled and bound to the security-test project", async () => {
+    process.env.APP_ENV = "staging";
+    process.env.APPLICANT_REGISTRATION_ENABLED = "true";
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://crfcglxcsnmeovnipnko.supabase.co";
+
+    const accepted = await register(
+      post({ email: "staging@example.test", password: "password-123", dateOfBirth: "2000-01-01" }),
+    );
+    expect(accepted.status).toBe(202);
+    expect(mocks.createApplicantAuthIdentity).toHaveBeenCalledOnce();
+
+    mocks.createApplicantAuthIdentity.mockClear();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://bpooqfgadtbyeduapwyi.supabase.co";
+    const rejected = await register(
+      post({ email: "staging@example.test", password: "password-123", dateOfBirth: "2000-01-01" }),
+    );
+    expect(rejected.status).toBe(503);
+    expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
+  });
+
+  it("does not enable staging registration when its flag is disabled", async () => {
+    process.env.APP_ENV = "staging";
+    process.env.APPLICANT_REGISTRATION_ENABLED = "false";
+
+    const response = await register(
+      post({ email: "staging@example.test", password: "password-123", dateOfBirth: "2000-01-01" }),
+    );
+    expect(response.status).toBe(503);
+    expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
+  });
+
+  it("does not treat an unset deployment identity as development in a production runtime", async () => {
+    delete process.env.APP_ENV;
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.APPLICANT_REGISTRATION_ENABLED = "true";
+
+    const response = await register(
+      post({ email: "staging@example.test", password: "password-123", dateOfBirth: "2000-01-01" }),
+    );
+    expect(response.status).toBe(503);
     expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
   });
 

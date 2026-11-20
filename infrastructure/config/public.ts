@@ -1,6 +1,32 @@
 import { parseEnv, publicEnvSchema } from "./public-schema";
 
 export const DEVELOPMENT_SUPABASE_PROJECT_REF = "crfcglxcsnmeovnipnko";
+export const STAGING_SUPABASE_PROJECT_REF = DEVELOPMENT_SUPABASE_PROJECT_REF;
+
+/** Staging writes are bound to the dedicated CYON security-test Supabase project. */
+export function assertStagingSupabaseTarget(url: string | undefined): void {
+  let parsed: URL;
+  try {
+    if (!url) throw new Error("missing_url");
+    parsed = new URL(url);
+  } catch {
+    throw new Error("Staging Supabase target must be the CYON security-test project.");
+  }
+
+  const expectedHost = `${STAGING_SUPABASE_PROJECT_REF}.supabase.co`;
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.hostname !== expectedHost ||
+    parsed.port !== "" ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.pathname !== "/" ||
+    parsed.search !== "" ||
+    parsed.hash !== ""
+  ) {
+    throw new Error("Staging Supabase target must be the CYON security-test project.");
+  }
+}
 
 /** Prevent `next dev` from silently using the known production Supabase project. */
 export function assertDevelopmentSupabaseTarget(url: string, nodeEnv = process.env.NODE_ENV): void {
@@ -88,7 +114,12 @@ export function getAuthRedirectUrl(
 }
 
 export function getTrustedAppDestination(
-  path: "/applicant" | "/applicant/sign-in" | "/auth/callback" | "/applicant/registration-confirmed" | "/auth/reset-password",
+  path:
+    | "/applicant"
+    | "/applicant/sign-in"
+    | "/auth/callback"
+    | "/applicant/registration-confirmed"
+    | "/auth/reset-password",
   status?: "confirmed" | "confirmation-failed" | "recovery-failed" | "unavailable",
 ): URL {
   const appUrl = parseEnv(publicEnvSchema.pick({ NEXT_PUBLIC_APP_URL: true }), {

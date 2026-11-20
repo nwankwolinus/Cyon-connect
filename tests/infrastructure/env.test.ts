@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { parseEnv, publicEnvSchema } from "@/infrastructure/config/public-schema";
 import {
+  assertStagingSupabaseTarget,
   assertDevelopmentSupabaseTarget,
   getPasswordUpdateDestination,
   getTrustedAppDestination,
@@ -33,6 +34,24 @@ describe("environment validation", () => {
     ).toThrow();
     expect(() =>
       assertDevelopmentSupabaseTarget("http://localhost.evil.test:54321", "development"),
+    ).toThrow();
+  });
+
+  it("restricts staging to the exact security-test Supabase URL", () => {
+    expect(() =>
+      assertStagingSupabaseTarget("https://crfcglxcsnmeovnipnko.supabase.co"),
+    ).not.toThrow();
+    expect(() => assertStagingSupabaseTarget("https://bpooqfgadtbyeduapwyi.supabase.co")).toThrow(
+      "Staging Supabase target must be the CYON security-test project.",
+    );
+    expect(() => assertStagingSupabaseTarget("https://other-project.supabase.co")).toThrow();
+    expect(() => assertStagingSupabaseTarget(undefined)).toThrow();
+    expect(() => assertStagingSupabaseTarget("not a url")).toThrow();
+    expect(() =>
+      assertStagingSupabaseTarget("https://crfcglxcsnmeovnipnko.supabase.co.evil.test"),
+    ).toThrow();
+    expect(() =>
+      assertStagingSupabaseTarget("https://crfcglxcsnmeovnipnko.supabase.co/path"),
     ).toThrow();
   });
 
