@@ -198,6 +198,38 @@ describe("prospective applicant registration", () => {
 });
 
 describe("confirmation and recovery callback", () => {
+  it("returns deployed confirmation links to the canonical registration-confirmed page", async () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://cyonssjoachimandanneijegun.netlify.app";
+    const response = await callback(
+      new Request(
+        "https://cyonssjoachimandanneijegun.netlify.app/auth/callback?code=one-time-code&flow=confirmation",
+      ),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(
+      "https://cyonssjoachimandanneijegun.netlify.app/applicant/registration-confirmed",
+    );
+    expect(mocks.exchangeCodeForSession).toHaveBeenCalledWith("one-time-code");
+    expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+
+  it("returns deployed recovery links to the protected password update page", async () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://cyonssjoachimandanneijegun.netlify.app";
+    const response = await callback(
+      new Request(
+        "https://cyonssjoachimandanneijegun.netlify.app/auth/callback?code=recovery-code&flow=recovery",
+      ),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(
+      "https://cyonssjoachimandanneijegun.netlify.app/auth/reset-password?mode=update",
+    );
+    expect(mocks.exchangeCodeForSession).toHaveBeenCalledWith("recovery-code");
+    expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+
   it("verifies a server-side confirmation token hash and establishes the verified identity", async () => {
     const response = await callback(
       new Request(
@@ -309,6 +341,29 @@ describe("confirmation and recovery callback", () => {
 });
 
 describe("password recovery and update", () => {
+  it("requests recovery with the canonical deployed callback", async () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://cyonssjoachimandanneijegun.netlify.app";
+    const request = new Request(
+      "https://cyonssjoachimandanneijegun.netlify.app/api/applicant-auth/recovery",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "https://cyonssjoachimandanneijegun.netlify.app",
+        },
+        body: JSON.stringify({ email: "applicant@example.test" }),
+      },
+    );
+
+    const response = await recover(request);
+
+    expect(response.status).toBe(202);
+    expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith("applicant@example.test", {
+      redirectTo:
+        "https://cyonssjoachimandanneijegun.netlify.app/auth/callback?flow=recovery",
+    });
+  });
+
   it("uses the same generic response for provider success and account-sensitive errors", async () => {
     const success = await recover(post({ email: "applicant@example.test" }));
     mocks.resetPasswordForEmail.mockResolvedValue({ error: { code: "user_not_found" } });

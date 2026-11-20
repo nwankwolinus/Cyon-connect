@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { parseEnv, publicEnvSchema } from "@/infrastructure/config/public-schema";
 import {
   assertDevelopmentSupabaseTarget,
+  getAuthRedirectUrl,
   getPasswordUpdateDestination,
   getTrustedAppDestination,
 } from "@/infrastructure/config/public";
@@ -42,6 +43,31 @@ describe("environment validation", () => {
     expect(destination.toString()).toBe("http://localhost:3000/applicant/sign-in?status=confirmed");
     expect(getPasswordUpdateDestination().toString()).toBe(
       "http://localhost:3000/auth/reset-password?mode=update",
+    );
+  });
+
+  it("uses the canonical Netlify origin for auth redirects and normalizes paths", () => {
+    process.env.NEXT_PUBLIC_APP_URL =
+      "https://cyonssjoachimandanneijegun.netlify.app/ignored/base/";
+
+    expect(getAuthRedirectUrl("/auth/callback", "confirmation")).toBe(
+      "https://cyonssjoachimandanneijegun.netlify.app/auth/callback?flow=confirmation",
+    );
+    expect(getAuthRedirectUrl("/auth/callback", "recovery")).toBe(
+      "https://cyonssjoachimandanneijegun.netlify.app/auth/callback?flow=recovery",
+    );
+    expect(getTrustedAppDestination("/applicant/registration-confirmed").toString()).toBe(
+      "https://cyonssjoachimandanneijegun.netlify.app/applicant/registration-confirmed",
+    );
+    expect(getPasswordUpdateDestination().toString()).toBe(
+      "https://cyonssjoachimandanneijegun.netlify.app/auth/reset-password?mode=update",
+    );
+  });
+
+  it("fails closed when the canonical app URL is missing instead of falling back to localhost", () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    expect(() => getTrustedAppDestination("/auth/callback")).toThrow(
+      /NEXT_PUBLIC_APP_URL/,
     );
   });
 

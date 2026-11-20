@@ -29,6 +29,23 @@ beforeEach(() => {
 });
 
 describe("server-controlled applicant identity creation", () => {
+  it("sends deployed confirmation email redirects to the canonical callback", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://cyonssjoachimandanneijegun.netlify.app");
+
+    await expect(
+      createApplicantAuthIdentity({ email: "applicant@example.test", password: "secret-password" }),
+    ).resolves.toBe("accepted");
+
+    expect(mocks.resend).toHaveBeenCalledWith({
+      type: "signup",
+      email: "applicant@example.test",
+      options: {
+        emailRedirectTo:
+          "https://cyonssjoachimandanneijegun.netlify.app/auth/callback?flow=confirmation",
+      },
+    });
+  });
+
   it("creates an unconfirmed Auth identity and sends the fixed signup confirmation", async () => {
     await expect(
       createApplicantAuthIdentity({ email: "applicant@example.test", password: "secret-password" }),

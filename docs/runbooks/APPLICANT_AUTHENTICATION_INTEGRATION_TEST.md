@@ -90,7 +90,7 @@ Use a new synthetic address at a test mailbox controlled by the operator and a u
 2. Confirm the UI displays the generic registration response. A success response does not prove message delivery.
 3. Before opening the message, visit `http://localhost:3000/applicant`. It must redirect to applicant sign-in; no application or member content should appear. This tests the unverified/no-session boundary for the newly registered identity.
 4. Open the single confirmation email in the controlled test mailbox. Check that its link uses the approved localhost callback. Do not copy the code into a log or share the link.
-5. Open the link once. The callback must exchange its one-time PKCE code, call server-side `getUser()`, require confirmed email, and redirect to the fixed applicant sign-in destination.
+5. Open the link once. The callback must exchange its one-time PKCE code, call server-side `getUser()`, require confirmed email, and redirect to `/applicant/registration-confirmed`. The applicant then signs in at `/applicant/sign-in` to continue.
 6. Re-open the already-used confirmation link once to check replay handling. It must show the generic invalid/expired result and must not redirect to an external destination.
 7. In the browser, visit `/auth/callback?code=invalid-test-code&flow=confirmation&next=https%3A%2F%2Fexample.invalid`. Expect the fixed local failure destination, not `example.invalid`. Do not use a real confirmation code in this negative test.
 
