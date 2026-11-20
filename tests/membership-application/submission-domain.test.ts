@@ -91,4 +91,25 @@ describe("membership application submission contract", () => {
         .success,
     ).toBe(false);
   });
+
+  it("normalizes accepted phone formatting and rejects invalid optional sacrament dates", () => {
+    const draft = validDraft();
+    draft.phone = "+234 (801) 234-5678";
+    draft.emergencyPhone = "+234-802-345-6789";
+    const parsed = membershipApplicationSubmissionSchema.parse(draft);
+    expect(parsed.phone).toBe("+2348012345678");
+    expect(parsed.emergencyPhone).toBe("+2348023456789");
+
+    draft.sacraments.confirmation.date = "2024-02-30";
+    expect(membershipApplicationSubmissionSchema.safeParse(draft).success).toBe(false);
+  });
+
+  it("requires a name only when Other society is selected", () => {
+    const draft = validDraft();
+    expect(membershipApplicationSubmissionSchema.safeParse(draft).success).toBe(true);
+    draft.otherSocietySelected = true;
+    expect(membershipApplicationSubmissionSchema.safeParse(draft).success).toBe(false);
+    draft.otherSocietyText = "Catholic youth choir";
+    expect(membershipApplicationSubmissionSchema.safeParse(draft).success).toBe(true);
+  });
 });

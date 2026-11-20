@@ -77,7 +77,10 @@ beforeEach(() => {
     email: "a@example.test",
   });
   mocks.isAvailable.mockResolvedValue(true);
-  mocks.upload.mockResolvedValue({ photoId: "photo-id" });
+  mocks.upload.mockResolvedValue({
+    photoId: "photo-id",
+    draftUpdatedAt: "2026-11-20T10:15:00.000Z",
+  });
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -87,6 +90,10 @@ describe("membership passport-photo upload route size boundary", () => {
     const file = new File([Buffer.alloc(maxPhotoBytes)], "synthetic.jpg", { type: "image/jpeg" });
     const response = await PUT(multipartRequest(file));
     expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      photoId: "photo-id",
+      draftUpdatedAt: "2026-11-20T10:15:00.000Z",
+    });
     expect(mocks.upload).toHaveBeenCalledOnce();
     expect(mocks.upload.mock.calls[0]?.[0].bytes.byteLength).toBe(maxPhotoBytes);
   });

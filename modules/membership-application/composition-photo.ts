@@ -50,7 +50,7 @@ export async function uploadApplicantPassportPhoto(input: {
       // the Storage API; a failure leaves only an inaccessible cleanup-queue item.
       await deletePendingObject(registered.previousObjectPath).catch(() => undefined);
     }
-    return { photoId };
+    return { photoId, draftUpdatedAt: registered.draftUpdatedAt };
   } catch {
     await storage.remove(objectPath).catch(() => undefined);
     throw new Error("photo_unavailable");

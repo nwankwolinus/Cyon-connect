@@ -72,7 +72,7 @@ export async function PUT(request: Request): Promise<Response> {
       draftId: draftId.data,
       bytes: Buffer.from(await file.arrayBuffer()),
     });
-    return json({ photoId: result.photoId }, 200);
+    return json({ photoId: result.photoId, draftUpdatedAt: result.draftUpdatedAt }, 200);
   } catch (error) {
     if (error instanceof Error && error.message === "photo_invalid") {
       return json(

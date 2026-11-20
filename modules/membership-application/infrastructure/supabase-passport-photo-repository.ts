@@ -22,7 +22,11 @@ export function createSupabasePassportPhotoRepository() {
       objectPath: string;
       byteSize: number;
       correlationId: string;
-    }): Promise<{ readonly photoId: string; readonly previousObjectPath: string | null }> {
+    }): Promise<{
+      readonly photoId: string;
+      readonly previousObjectPath: string | null;
+      readonly draftUpdatedAt: string;
+    }> {
       const { data, error } = await createAdminSupabaseClient().rpc(
         "register_membership_application_photo",
         {
@@ -35,11 +39,19 @@ export function createSupabasePassportPhotoRepository() {
           p_correlation_id: input.correlationId,
         },
       );
-      if (error || data?.photoId !== input.photoId) unavailable();
+      if (
+        error ||
+        data?.photoId !== input.photoId ||
+        typeof data.draftUpdatedAt !== "string" ||
+        Number.isNaN(Date.parse(data.draftUpdatedAt))
+      ) {
+        unavailable();
+      }
       return {
         photoId: data.photoId,
         previousObjectPath:
           typeof data.previousObjectPath === "string" ? data.previousObjectPath : null,
+        draftUpdatedAt: data.draftUpdatedAt,
       };
     },
 

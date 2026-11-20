@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ARCHDIOCESAN_SOCIETY_OPTIONS } from "./society-options";
+import { isValidDateOnly, normalizePhoneNumber } from "@/shared/membership-application-validation";
 
 const shortText = (max = 200) => z.string().trim().max(max);
 const requiredText = (max = 200) => z.string().trim().min(1).max(max);
@@ -23,8 +24,8 @@ const addressDraftSchema = z
   .strict();
 const phoneSchema = z
   .string()
-  .trim()
-  .regex(/^\+?[1-9]\d{6,14}$/, "Invalid phone structure.");
+  .transform(normalizePhoneNumber)
+  .pipe(z.string().regex(/^\+?[1-9]\d{6,14}$/, "Enter a valid phone number."));
 const sacramentSchema = z
   .object({
     status: z.enum(["received", "not_received", "unknown"]),
@@ -32,13 +33,7 @@ const sacramentSchema = z
     place: shortText(200),
   })
   .strict();
-const dateOnly = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .refine((value) => {
-    const date = new Date(`${value}T00:00:00.000Z`);
-    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
-  }, "Invalid date.");
+const dateOnly = z.string().refine(isValidDateOnly, "Enter a valid date.");
 
 /** Untrusted browser payload. DOB is validated here but is removed before persistence. */
 export const membershipApplicationSubmissionSchema = z
@@ -72,14 +67,18 @@ export const membershipApplicationSubmissionSchema = z
         if (value.matrimonyApplicable === "yes" && !value.matrimony.status) {
           ctx.addIssue({ code: "custom", path: ["matrimony", "status"], message: "Required." });
         }
-        for (const sacrament of [
-          value.baptism,
-          value.communion,
-          value.confirmation,
-          value.matrimony,
-        ]) {
+        for (const [name, sacrament] of [
+          ["baptism", value.baptism],
+          ["communion", value.communion],
+          ["confirmation", value.confirmation],
+          ["matrimony", value.matrimony],
+        ] as const) {
           if (sacrament.date && !dateOnly.safeParse(sacrament.date).success) {
-            ctx.addIssue({ code: "custom", path: ["date"], message: "Invalid date." });
+            ctx.addIssue({
+              code: "custom",
+              path: [name, "date"],
+              message: "Enter a valid date.",
+            });
           }
         }
       }),

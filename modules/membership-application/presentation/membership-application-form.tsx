@@ -1,6 +1,13 @@
 "use client";
 
 import React, { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
+import {
+  acceptDraftUpdatedAt,
+  enqueueDraftMutation,
+  isValidDateOnly,
+  isValidPhoneNumber,
+} from "@/shared/membership-application-validation";
+import { getMembershipSubmissionValidationIssues } from "@/modules/membership-application/application/validate-submission-payload";
 
 type SacramentStatus = "" | "received" | "not_received" | "unknown";
 type Sacrament = { status: SacramentStatus; date: string; place: string };
@@ -446,56 +453,59 @@ export function MembershipApplicationForm({
     setSaveState("saving");
     setSaveMessage("");
     const payload = draftPayloadWithoutDob(snapshot);
-    saveQueue.current = saveQueue.current
-      .catch(() => undefined)
-      .then(async () => {
-        try {
-          const response = await fetch("/api/membership-applications/draft", {
-            method: "PUT",
-            credentials: "same-origin",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              payload,
-              activeStep: snapshotStep,
-              expectedUpdatedAt: draftUpdatedAt.current,
-            }),
-          });
-          const result: unknown = await response.json().catch(() => null);
-          if (
-            response.ok &&
-            result &&
-            typeof result === "object" &&
-            "updatedAt" in result &&
-            typeof result.updatedAt === "string" &&
-            "draftId" in result &&
-            typeof result.draftId === "string"
-          ) {
-            draftUpdatedAt.current = result.updatedAt;
-            draftId.current = result.draftId;
-            if (sequence === saveSequence.current && revision === draftRevision.current) {
-              draftDirty.current = false;
-              setSaveState("saved");
-              setSaveMessage("Saved. Drafts expire 30 days after the last successful save.");
-            } else if (sequence === saveSequence.current) {
-              setSaveState("saving");
-              setSaveMessage("New changes are waiting to be saved.");
-            }
+    const saveOperation = enqueueDraftMutation(saveQueue, async () => {
+      try {
+        const requestVersion = draftUpdatedAt.current;
+        const response = await fetch("/api/membership-applications/draft", {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            payload,
+            activeStep: snapshotStep,
+            expectedUpdatedAt: requestVersion,
+          }),
+        });
+        const result: unknown = await response.json().catch(() => null);
+        if (
+          response.ok &&
+          result &&
+          typeof result === "object" &&
+          "updatedAt" in result &&
+          typeof result.updatedAt === "string" &&
+          "draftId" in result &&
+          typeof result.draftId === "string"
+        ) {
+          draftUpdatedAt.current = acceptDraftUpdatedAt(
+            draftUpdatedAt.current,
+            requestVersion,
+            result.updatedAt,
+          );
+          draftId.current = result.draftId;
+          if (sequence === saveSequence.current && revision === draftRevision.current) {
+            draftDirty.current = false;
+            setSaveState("saved");
+            setSaveMessage("Saved. Drafts expire 30 days after the last successful save.");
           } else if (sequence === saveSequence.current) {
-            setSaveState("error");
-            setSaveMessage(
-              response.status === 409
-                ? "This draft changed in another session. Reload to get the latest saved version, then try again."
-                : "Unable to save — retry. Your current entries remain on this page.",
-            );
+            setSaveState("saving");
+            setSaveMessage("New changes are waiting to be saved.");
           }
-        } catch {
-          if (sequence === saveSequence.current) {
-            setSaveState("error");
-            setSaveMessage("Unable to save — retry. Your current entries remain on this page.");
-          }
+        } else if (sequence === saveSequence.current) {
+          setSaveState("error");
+          setSaveMessage(
+            response.status === 409
+              ? "This draft changed in another session. Reload to get the latest saved version, then try again."
+              : "Unable to save — retry. Your current entries remain on this page.",
+          );
         }
-      });
-    return saveQueue.current;
+      } catch {
+        if (sequence === saveSequence.current) {
+          setSaveState("error");
+          setSaveMessage("Unable to save — retry. Your current entries remain on this page.");
+        }
+      }
+    });
+    return saveOperation.then(() => undefined);
   }
   saveProgressRef.current = saveProgress;
 
@@ -508,40 +518,51 @@ export function MembershipApplicationForm({
       return;
     }
     setPhotoBusy(true);
-    try {
-      const form = new FormData();
-      form.set("draftId", draftId.current);
-      form.set("file", file);
-      const response = await fetch("/api/membership-applications/photo", {
-        method: "PUT",
-        credentials: "same-origin",
-        body: form,
-      });
-      const result: unknown = await response.json().catch(() => null);
-      if (
-        !response.ok ||
-        !result ||
-        typeof result !== "object" ||
-        !("photoId" in result) ||
-        typeof result.photoId !== "string"
-      ) {
-        setPhotoError(
-          result &&
-            typeof result === "object" &&
-            "message" in result &&
-            typeof result.message === "string"
-            ? result.message
-            : "The photograph could not be saved. Please retry.",
+    const uploadOperation = enqueueDraftMutation(saveQueue, async () => {
+      const requestVersion = draftUpdatedAt.current;
+      try {
+        const form = new FormData();
+        form.set("draftId", draftId.current!);
+        form.set("file", file);
+        const response = await fetch("/api/membership-applications/photo", {
+          method: "PUT",
+          credentials: "same-origin",
+          body: form,
+        });
+        const result: unknown = await response.json().catch(() => null);
+        if (
+          !response.ok ||
+          !result ||
+          typeof result !== "object" ||
+          !("photoId" in result) ||
+          typeof result.photoId !== "string" ||
+          !("draftUpdatedAt" in result) ||
+          typeof result.draftUpdatedAt !== "string"
+        ) {
+          setPhotoError(
+            result &&
+              typeof result === "object" &&
+              "message" in result &&
+              typeof result.message === "string"
+              ? result.message
+              : "The photograph could not be saved. Please retry.",
+          );
+          return;
+        }
+        draftUpdatedAt.current = acceptDraftUpdatedAt(
+          draftUpdatedAt.current,
+          requestVersion,
+          result.draftUpdatedAt,
         );
-        return;
+        setPassportPhotoId(result.photoId);
+        setSaveMessage("Photograph saved with your draft.");
+      } catch {
+        setPhotoError("The photograph could not be saved. Check your connection and retry.");
+      } finally {
+        setPhotoBusy(false);
       }
-      setPassportPhotoId(result.photoId);
-      setSaveMessage("Photograph saved with your draft.");
-    } catch {
-      setPhotoError("The photograph could not be saved. Check your connection and retry.");
-    } finally {
-      setPhotoBusy(false);
-    }
+    });
+    await uploadOperation;
   }
 
   async function removePassportPhoto() {
@@ -608,10 +629,7 @@ export function MembershipApplicationForm({
     const result = validateMembershipApplicationDraft(draft);
     setErrors(result);
     if (Object.keys(result).length) {
-      const firstStep = steps.findIndex(
-        (candidate) => Object.keys(validateStep(candidate, draft)).length > 0,
-      );
-      dispatch({ type: "set-step", stepIndex: Math.max(0, firstStep) });
+      dispatch({ type: "set-step", stepIndex: firstInvalidStep(result) });
       setNotice("Please complete the highlighted required information before reviewing.");
       return;
     }
@@ -1410,8 +1428,9 @@ export function MembershipApplicationSocieties({
           {draft.otherSocietySelected && (
             <TextField
               id="otherSocietyText"
-              label="Other society name (optional)"
+              label="Other society name"
               value={draft.otherSocietyText}
+              required
               onChange={setOtherSocietyText}
             />
           )}
@@ -1844,9 +1863,52 @@ function Required() {
   return <span className="text-xs font-medium text-neutral-600">Required</span>;
 }
 export function validateMembershipApplicationDraft(draft: Draft): Errors {
-  return Object.fromEntries(
+  const errors = Object.fromEntries(
     steps.flatMap((step) => Object.entries(validateStep(step, draft))),
   ) as Errors;
+  for (const issue of getMembershipSubmissionValidationIssues(draft)) {
+    const key = issue.path.join(".");
+    if (key && !errors[key]) errors[key] = issue.message;
+  }
+  return errors;
+}
+
+function firstInvalidStep(errors: Errors): number {
+  const fieldStep: Record<string, number> = {
+    firstName: 0,
+    middleName: 0,
+    surname: 0,
+    dateOfBirth: 0,
+    sex: 0,
+    maritalStatus: 0,
+    phone: 1,
+    residential: 2,
+    permanent: 2,
+    sacraments: 3,
+    matrimonyApplicable: 3,
+    currentlyBelongsElsewhere: 4,
+    previouslyBelongedElsewhere: 4,
+    currentParish: 4,
+    currentParishLocation: 4,
+    previousParish: 4,
+    previousParishLocation: 4,
+    parishJourney: 4,
+    occupationStatus: 5,
+    occupationDescription: 5,
+    selectedSocieties: 6,
+    noSocieties: 6,
+    otherSocietySelected: 6,
+    otherSocietyText: 6,
+    emergencyName: 7,
+    emergencyRelationship: 7,
+    emergencyPhone: 7,
+    emergencyAlternativePhone: 7,
+    emergencyConsent: 7,
+    schoolNotApplicable: 8,
+    school: 8,
+  };
+  const indexes = Object.keys(errors).map((key) => fieldStep[key.split(".")[0] ?? ""] ?? 0);
+  return indexes.length ? Math.min(...indexes) : 0;
 }
 function validateStep(step: Step, draft: Draft): Errors {
   const errors: Errors = {};
@@ -1886,9 +1948,12 @@ function validateStep(step: Step, draft: Draft): Errors {
       ["baptism", draft.sacraments.baptism],
       ["communion", draft.sacraments.communion],
       ["confirmation", draft.sacraments.confirmation],
-    ] as const)
+    ] as const) {
       if (!["received", "not_received", "unknown"].includes(item.status))
         errors[`sacraments.${key}.status`] = "Select Received, Not received, or Unknown.";
+      if (item.date && !isValidDateOnly(item.date))
+        errors[`sacraments.${key}.date`] = "Enter a valid date or leave the date blank.";
+    }
     if (!["yes", "no"].includes(draft.sacraments.matrimonyApplicable))
       errors.matrimonyApplicable = "Select whether Matrimony applies.";
     if (
@@ -1896,6 +1961,16 @@ function validateStep(step: Step, draft: Draft): Errors {
       !["received", "not_received", "unknown"].includes(draft.sacraments.matrimony.status)
     )
       errors["sacraments.matrimony.status"] = "Select Received, Not received, or Unknown.";
+    if (draft.sacraments.matrimony.date && !isValidDateOnly(draft.sacraments.matrimony.date))
+      errors["sacraments.matrimony.date"] = "Enter a valid date or leave the date blank.";
+  }
+  if (step === "Societies") {
+    if (draft.otherSocietySelected && !draft.otherSocietyText.trim()) {
+      errors.otherSocietyText = "Enter the society name, or deselect Other.";
+    }
+    if (draft.noSocieties && (draft.selectedSocieties.length > 0 || draft.otherSocietySelected)) {
+      errors.noSocieties = "None currently cannot be selected with society memberships.";
+    }
   }
   if (step === "Parish history") {
     if (!["yes", "no"].includes(draft.currentlyBelongsElsewhere))
@@ -1925,12 +2000,10 @@ function validateStep(step: Step, draft: Draft): Errors {
   return errors;
 }
 function validPhone(value: string): boolean {
-  const normalized = value.trim().replace(/[\s().-]/g, "");
-  return /^\+?[1-9]\d{6,14}$/.test(normalized);
+  return isValidPhoneNumber(value);
 }
 function validDate(value: string): boolean {
-  const date = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  return isValidDateOnly(value);
 }
 function localToday(): string {
   const now = new Date();

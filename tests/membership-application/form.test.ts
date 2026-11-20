@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { membershipApplicationSubmissionSchema } from "@/modules/membership-application/domain/submission";
 import {
   ARCHDIOCESAN_SOCIETY_OPTIONS,
   createInitialMembershipApplicationDraft,
@@ -61,7 +62,22 @@ describe("membership application form", () => {
   });
 
   it("accepts the approved required fields and leaves approved optional fields empty", () => {
-    expect(validateMembershipApplicationDraft(validDraft())).toEqual({});
+    const draft = validDraft();
+    expect(validateMembershipApplicationDraft(draft)).toEqual({});
+    expect(membershipApplicationSubmissionSchema.safeParse(draft).success).toBe(true);
+  });
+
+  it("accepts formatted phone numbers consistently in client and server validation", () => {
+    const draft = validDraft();
+    draft.phone = "+234 (801) 234-5678";
+    draft.emergencyPhone = "+234-802-345-6789";
+    expect(validateMembershipApplicationDraft(draft)).toEqual({});
+    const parsed = membershipApplicationSubmissionSchema.safeParse(draft);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.phone).toBe("+2348012345678");
+      expect(parsed.data.emergencyPhone).toBe("+2348023456789");
+    }
   });
 
   it("rejects missing names, invalid or future birth dates, and unapproved choices", () => {
@@ -90,6 +106,20 @@ describe("membership application form", () => {
     expect(errors["sacraments.baptism.status"]).toBeDefined();
     expect(errors["sacraments.matrimony.status"]).toBeDefined();
     expect(errors["sacraments.confirmation.date"]).toBeUndefined();
+  });
+
+  it("rejects invalid optional sacrament dates with field-level feedback in both validators", () => {
+    const draft = validDraft();
+    draft.sacraments.confirmation.date = "2024-02-30";
+    expect(validateMembershipApplicationDraft(draft)["sacraments.confirmation.date"]).toBe(
+      "Enter a valid date or leave the date blank.",
+    );
+    expect(membershipApplicationSubmissionSchema.safeParse(draft).success).toBe(false);
+    draft.sacraments.confirmation.date = "";
+    expect(
+      validateMembershipApplicationDraft(draft)["sacraments.confirmation.date"],
+    ).toBeUndefined();
+    expect(membershipApplicationSubmissionSchema.safeParse(draft).success).toBe(true);
   });
 
   it("requires permanent-address fields only when the address differs", () => {
@@ -214,7 +244,9 @@ describe("membership application form", () => {
     state = membershipApplicationFormReducer(state, { type: "set-other-society", selected: false });
     expect(state.draft.otherSocietySelected).toBe(false);
     state = membershipApplicationFormReducer(state, { type: "set-other-society", selected: true });
-    expect(renderSocieties()).toContain('id="otherSocietyText"');
+    const otherMarkup = renderSocieties();
+    expect(otherMarkup).toContain('id="otherSocietyText"');
+    expect(otherMarkup).toMatch(/<input[^>]*id="otherSocietyText"[^>]*required=""/);
     state = membershipApplicationFormReducer(state, {
       type: "update-field",
       field: "otherSocietyText",
@@ -230,6 +262,19 @@ describe("membership application form", () => {
       }),
     );
     expect(review).toContain("Other: Community group");
+  });
+
+  it("requires an Other society name with field-level feedback while keeping society membership optional", () => {
+    const draft = validDraft();
+    expect(validateMembershipApplicationDraft(draft).otherSocietyText).toBeUndefined();
+    draft.otherSocietySelected = true;
+    expect(validateMembershipApplicationDraft(draft).otherSocietyText).toBe(
+      "Enter the society name, or deselect Other.",
+    );
+    expect(membershipApplicationSubmissionSchema.safeParse(draft).success).toBe(false);
+    draft.otherSocietyText = "Catholic youth choir";
+    expect(validateMembershipApplicationDraft(draft).otherSocietyText).toBeUndefined();
+    expect(membershipApplicationSubmissionSchema.safeParse(draft).success).toBe(true);
   });
 
   it("shows the None currently choice and renders selected names accurately in review", () => {
