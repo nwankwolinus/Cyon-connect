@@ -9,23 +9,30 @@ export default function ApplicantRegistrationConfirmedPage() {
         <ParishCyonBrand />
 
         <div className="mt-8">
-          <h1 className="text-xl font-semibold">Email Address Verified Successfully</h1>
+          <h1 className="text-xl font-semibold">Email Verified Successfully!</h1>
 
           <p className="mt-3 text-sm leading-6 text-neutral-600">
-            Your email address has been verified, and your CYON Connect applicant account is ready.
+            Your email address has been successfully verified. Your CYON Connect applicant account
+            is now ready.
           </p>
 
           <p className="mt-3 text-sm leading-6 text-neutral-600">
-            Email verification does not mean your membership application has been submitted or
-            approved. Continue to your applicant portal to start or resume your application.
+            You can now sign in to access your applicant dashboard and continue with your membership
+            application.
           </p>
 
           <Link
-            href="/applicant"
+            href="/applicant/sign-in"
             className="mt-6 inline-flex w-full items-center justify-center rounded-md bg-neutral-900 px-4 py-3 text-sm font-medium text-white hover:bg-neutral-800"
           >
-            Continue to My Application
+            Sign In to Continue
           </Link>
+
+          <ul className="mt-5 list-disc space-y-2 pl-5 text-sm leading-6 text-neutral-600">
+            <li>Sign in using the email address and password you registered with.</li>
+            <li>Your membership application is not complete until you submit it.</li>
+            <li>Email verification does not constitute membership approval.</li>
+          </ul>
         </div>
       </section>
     </main>

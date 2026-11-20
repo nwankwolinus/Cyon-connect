@@ -179,11 +179,18 @@ describe("applicant journey landing", () => {
     expect(mocks.getMyMembershipApplicationOverview).not.toHaveBeenCalled();
   });
 
-  it("continues verified applicants through the portal instead of bypassing it", () => {
+  it("confirms email verification and directs applicants to sign in before continuing", () => {
     const markup = renderToStaticMarkup(createElement(ApplicantRegistrationConfirmedPage));
-    expect(markup).toContain('href="/applicant"');
+    expect(markup).toContain("Email Verified Successfully!");
     expect(markup).toContain(
-      "Email verification does not mean your membership application has been submitted or approved",
+      "Your email address has been successfully verified. Your CYON Connect applicant account is now ready.",
     );
+    expect(markup).toContain("You can now sign in to access your applicant dashboard");
+    expect(markup).toContain('href="/applicant/sign-in"');
+    expect(markup).toContain("Sign In to Continue");
+    expect(markup).toContain("Sign in using the email address and password you registered with.");
+    expect(markup).toContain("Your membership application is not complete until you submit it.");
+    expect(markup).toContain("Email verification does not constitute membership approval.");
+    expect(markup).not.toContain('href="/applicant"');
   });
 });
