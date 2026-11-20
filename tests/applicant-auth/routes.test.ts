@@ -69,6 +69,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 describe("prospective applicant registration", () => {
@@ -93,6 +94,93 @@ describe("prospective applicant registration", () => {
     });
     expect((await register(crossOrigin)).status).toBe(403);
     expect((await register(missingOrigin)).status).toBe(403);
+    expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
+  });
+
+  it("logs a safe origin-validation diagnostic and returns JSON 503 when origin configuration throws", async () => {
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "not-a-url");
+
+    const response = await register(
+      post({
+        email: "private@example.test",
+        password: "secret-password",
+        dateOfBirth: "2000-01-01",
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      message: "Registration is temporarily unavailable. Please try again later.",
+    });
+    expect(diagnostic).toHaveBeenCalledWith(
+      "[applicant-registration]",
+      "origin_validation",
+      "Error",
+    );
+    expect(diagnostic.mock.calls.flat().join(" ")).not.toMatch(
+      /private@example\.test|secret-password|2000-01-01|not-a-url/i,
+    );
+    expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
+  });
+
+  it("logs a safe registration-service diagnostic and returns JSON 503 for an unexpected service exception", async () => {
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.createApplicantAuthIdentity.mockRejectedValueOnce(
+      new TypeError("private provider exception detail"),
+    );
+
+    const response = await register(
+      post({
+        email: "private@example.test",
+        password: "secret-password",
+        dateOfBirth: "2000-01-01",
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      message: "Registration is temporarily unavailable. Please try again later.",
+    });
+    expect(diagnostic).toHaveBeenCalledWith(
+      "[applicant-registration]",
+      "registration_service",
+      "TypeError",
+    );
+    expect(diagnostic.mock.calls.flat().join(" ")).not.toMatch(
+      /private provider exception detail|private@example\.test|secret-password|2000-01-01/i,
+    );
+  });
+
+  it("logs server environment validation safely, rethrows, and is converted to generic JSON 503", async () => {
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("MEMBERSHIP_PHOTO_CLEANUP_HMAC_SECRET", "too-short-secret");
+
+    const response = await register(
+      post({
+        email: "private@example.test",
+        password: "secret-password",
+        dateOfBirth: "2000-01-01",
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      message: "Registration is temporarily unavailable. Please try again later.",
+    });
+    expect(diagnostic).toHaveBeenCalledWith(
+      "[applicant-registration]",
+      "server_env_validation",
+      "Error",
+    );
+    expect(diagnostic).toHaveBeenCalledWith(
+      "[applicant-registration]",
+      "registration_service",
+      "Error",
+    );
+    expect(diagnostic.mock.calls.flat().join(" ")).not.toMatch(
+      /too-short-secret|private@example\.test|secret-password|2000-01-01/i,
+    );
     expect(mocks.createApplicantAuthIdentity).not.toHaveBeenCalled();
   });
 

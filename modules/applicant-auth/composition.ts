@@ -36,7 +36,13 @@ export async function registerApplicant(input: unknown) {
   const eligibility = evaluateApplicantEligibility(parsed.data.dateOfBirth, today);
   if (eligibility === "invalid") return "invalid" as const;
   if (eligibility === "ineligible") return "ineligible" as const;
-  const env = getServerEnv();
+  let env: ReturnType<typeof getServerEnv>;
+  try {
+    env = getServerEnv();
+  } catch (error) {
+    logRegistrationConfigurationFailure(error);
+    throw error;
+  }
   const developmentRuntime = env.APP_ENV === "development" && process.env.NODE_ENV !== "production";
   const stagingRuntime = env.APP_ENV === "staging";
   if ((!developmentRuntime && !stagingRuntime) || env.APPLICANT_REGISTRATION_ENABLED !== "true") {
@@ -50,6 +56,20 @@ export async function registerApplicant(input: unknown) {
     }
   }
   return createApplicantAuthIdentity({ email: parsed.data.email, password: parsed.data.password });
+}
+
+function logRegistrationConfigurationFailure(error: unknown): void {
+  const errorName =
+    error instanceof Error && /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(error.name)
+      ? error.name
+      : error instanceof Error
+        ? "Error"
+        : "NonError";
+  try {
+    console.error("[applicant-registration]", "server_env_validation", errorName);
+  } catch {
+    // Preserve the original validation exception for the route-level handler.
+  }
 }
 
 export async function requestApplicantRecovery(input: unknown) {
